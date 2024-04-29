@@ -14,10 +14,6 @@ import subprocess
 
 cv2 = try_cv2_import()
 
-IMAGE_DIR = "./"
-if not os.path.exists(IMAGE_DIR):
-    os.makedirs(IMAGE_DIR)
-
 class SimpleRLEnv(habitat.RLEnv):
     def get_reward_range(self):
         return [-1, 1]
@@ -40,14 +36,14 @@ def draw_top_down_map(info, output_size):
 
 def run_agents():
     config = habitat.get_config(
-        config_path="hab1_config.yaml",
+        config_path="hab_1_config.yaml",
         overrides=[
             "+habitat/task/measurements@habitat.task.measurements.top_down_map=top_down_map"
         ],
     )
 
     # compress the json file
-    subprocess.run(["gzip", "episodes_1agent.json", "--keep", "--force"])
+    subprocess.run(["gzip", "hab_1_episodes.json", "--keep", "--force"])
 
     env = SimpleRLEnv(config=config) 
 
@@ -66,9 +62,7 @@ def run_agents():
     print("Environment creation successful")
     env.reset()
 
-    dirname = os.path.join(
-        IMAGE_DIR, "jack-run", "continuous"
-    )
+    dirname = "output"
     if os.path.exists(dirname):
         shutil.rmtree(dirname)
     os.makedirs(dirname)

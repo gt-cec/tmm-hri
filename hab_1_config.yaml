@@ -7,14 +7,18 @@ defaults:
   - /habitat/dataset: dataset_config_schema
   - _self_
 
+
 habitat:
+  
   dataset:
     type: PointNav-v1
     # split: train
-    data_path: episodes_1agent.json.gz
+    
+    data_path: "hab_1_episodes.json.gz"
   environment:
     max_episode_steps: 100
   simulator:
+    dataset_path: "data/replica_cad_baked_lighting/replicaCAD_baked.scene_dataset_config.json"
     agents:
       main_agent:
         sim_sensors:
