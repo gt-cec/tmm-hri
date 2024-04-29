@@ -1,0 +1,23 @@
+{
+    "episodes": 
+    [
+        {
+            "scene_id": "habitat-sim/data/replica_cad/replicaCAD.scene_dataset_config.json",
+            "episode_id": "0", 
+            "start_position": [0.2676633596420288, 0.2047852873802185, 1.595427513122559], 
+            "start_rotation": [0, 0.4536385088584658, 0, 0.8911857849408661], 
+            "info": {
+                "geodesic_distance": 6.335183143615723, 
+                "difficulty": "easy"
+                },
+            "goals": [
+                {
+                    "position": [1.2896811962127686, 0.11950381100177765, 1.97636604309082], 
+                    "radius": null
+                }
+            ],
+            "shortest_paths": null, 
+            "start_room": null
+        }
+    ]
+}

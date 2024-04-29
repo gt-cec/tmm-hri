@@ -1,0 +1,26 @@
+# @package _global_
+
+defaults:
+  - /habitat: habitat_config_base
+  - /habitat/task: pointnav
+  - /habitat/simulator/sensor_setups@habitat.simulator.agents.main_agent: rgbd_agent
+  - /habitat/dataset: dataset_config_schema
+  - _self_
+
+habitat:
+  dataset:
+    type: PointNav-v1
+    # split: train
+    data_path: episodes_1agent.json.gz
+  environment:
+    max_episode_steps: 100
+  simulator:
+    agents:
+      main_agent:
+        sim_sensors:
+          rgb_sensor:
+            width: 256
+            height: 256
+          depth_sensor:
+            width: 256
+            height: 256
