@@ -18,7 +18,7 @@ habitat:
   environment:
     max_episode_steps: 100
   simulator:
-    dataset_path: "data/replica_cad_baked_lighting/replicaCAD_baked.scene_dataset_config.json"
+    # dataset_path: "data/replica_cad_baked_lighting/replicaCAD_baked.scene_dataset_config.json"
     agents:
       main_agent:
         sim_sensors:

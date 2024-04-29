@@ -62,7 +62,7 @@ def run_agents():
     print("Environment creation successful")
     env.reset()
 
-    dirname = "output"
+    dirname = "video"
     if os.path.exists(dirname):
         shutil.rmtree(dirname)
     os.makedirs(dirname)
@@ -79,10 +79,10 @@ def run_agents():
         observations, reward, done, info = env.step(robot_best_action)
         im = observations["rgb"]
         top_down_map = draw_top_down_map(info, im.shape[0])
-        output_im = np.concatenate((im, top_down_map), axis=1)
-        images.append(output_im)
+        # im = np.concatenate((im, top_down_map), axis=1)
+        images.append(im)
 
-    images_to_video(images, dirname, "jack-run")
+    images_to_video(images, dirname, "robot_view_1_agent")
     print("Episode finished")
 
 

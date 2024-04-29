@@ -4,8 +4,12 @@
 !hab_1_agent.py
 !hab_1_config.py
 !hab_1_episodes.json
+!video/robot_view_1_agent.mp4
+!video/human_view_1_agent.mp4
 
 # 2-agent environment, for the project
 !hab_2_agent.py
 !hab_2_config.py
 !hab_2_episodes.json
+!video/robot_view_2_agent.mp4
+!video/human_view_2_agent.mp4
