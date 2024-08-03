@@ -1,15 +1,27 @@
 *
 
-# 1-agent environment, for testing
-!hab_1_agent.py
-!hab_1_config.py
-!hab_1_episodes.json
-!video/robot_view_1_agent.mp4
-!video/human_view_1_agent.mp4
+!README.md
+!.gitignore
+!*.py
 
-# 2-agent environment, for the project
-!hab_2_agent.py
-!hab_2_config.py
-!hab_2_episodes.json
-!video/robot_view_2_agent.mp4
-!video/human_view_2_agent.mp4
+# simulation
+!sim/*
+# simulation: ignore the Output folder
+sim/Output
+output.zip
+# simulation: ignore the linux simulator (users should get that elsewhere)
+sim/virtualhome/simulation/unity_simulator/linux_exec*
+
+# allow the dynamic scene graph code
+!dsg/
+!dsg/**
+
+# allow the segmentation code
+!segmentation/
+# segmentation: ignore the model repo
+segmentation/detectron2
+detectron2*
+# segmentation: ignore .ipynb files
+segmentation/scene_segmentation.ipynb
+
+__pycache__
