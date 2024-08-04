@@ -1,7 +1,7 @@
 # mental_model.py: uses the segmentator and the dynamic scene graph to construct and update the mental model
 
 from dsg import dsg
-import segmentation.scene_segmentation
+from segmentation import scene_segmentation
 import math
 
 class MentalModel:
@@ -13,7 +13,7 @@ class MentalModel:
     def update_from_rgbd_and_pose(self, rgb, depth, pose):
         # verify types
         # segment the RGB into labels and masks
-        labels, seg_masks = segmentation.scene_segmentation.segmentation(rgb)
+        labels, seg_masks = scene_segmentation.segmentation(rgb)
         # overlay the object masks on the depth image
         for i in range(seg_masks.shape[0]):  # for each observed object
             mask = depth[seg_masks[i]]  # the depth field corresponding to the mask
