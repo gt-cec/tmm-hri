@@ -10,7 +10,7 @@ if __name__ == "__main__":
     files = os.listdir(sim_dir)
     frames = sorted([int(x.split("_")[1]) for x in files if x.startswith("Action") and x.endswith(".png")])  # get frames, the .png filter prevents duplicates (each frame has .png and .exr)
     for frame_id in frames:
-        seg_file_name = "seg_" + str(frame_id) + ".pkl"
+        seg_file_name = "seg_" + str(frame_id) + "_detectron2.pkl"
         if seg_file_name in files:
             print("Skipping", frame_id, "as already pickled.")
             continue

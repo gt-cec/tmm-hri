@@ -92,6 +92,18 @@ I then tried updating the torchvision version, but that led to a different undef
 
 While the process was messy, I think these are the steps:
 1. Create conda environment with pytorch 1.10 and torchvision 0.11
+
+`conda create -n "dt"`
+`conda activate dt`
+`conda install python==3.12.2`
+`conda install conda-forge::pytorch==1.10.1`
+`conda install conda-forge::torchvision==0.11.1`
+
 2. On the Detectron2 conda download page, go to Files and download the .conda with the target architecture, python version, and CUDA/CPU. I think the issue was the default was incorrect here.
 3. conda install the .conda file
-4. Should be good to go
+
+`conda install detectron2*.conda`
+
+4. Should be good to go, if you run into import errors just install the requisite pip packages
+
+`pip3 install python-opencv matplotlib ...`
