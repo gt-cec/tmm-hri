@@ -11,11 +11,15 @@ sim_dir = "../Output/human/0"
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
 
 colormap = matplotlib.cm.hsv
-norm = plt.Normalize(vmin=1, vmax=100)
-scalar_mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=colormap)
 
 def main(visualize=False):
     print("Running on simulator data.")
+    
+    # choose classes
+    classes = ["person standing", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "bowl", "plant", "television"]
+    norm = plt.Normalize(vmin=1, vmax=len(classes))
+    scalar_mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=colormap)
+    class_to_color_map = scalar_mappable.to_rgba([i for i, x in enumerate(classes)])  # color mapper
 
     # get the poses
     print("Reading poses")
@@ -74,32 +78,29 @@ def main(visualize=False):
             continue
         print("Pulling frame", frame_id)
         bgr = cv2.imread(sim_dir + "/Action_" + str(frame_id).zfill(4) + "_0_normal.png")
-        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
         depth = cv2.imread(sim_dir + "/Action_" + str(frame_id).zfill(4) + "_0_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         depth_1channel = depth[:,:,0]
         pose = poses[str(int(frame_id))]
-        objects = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose)
-        print([o["class"] for o in objects])
+        objects = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, 0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
         if visualize:
             x = [o["x"] for o in objects]  # x coordinates for plotting
             y = [o["y"] for o in objects]  # y coordinates for plotting
             z = [o["z"] for o in objects]  # z coordinates for plotting
-            c = scalar_mappable.to_rgba([x["class id"] for x in objects])
             seg = np.zeros((rgb.shape[0], rgb.shape[1], 4))  # segmentation colors
             for o in objects:  # get the segmentation by color
-                seg[o["seg mask"]] = scalar_mappable.to_rgba(o["class id"])
-            np.set_printoptions(threshold=np.inf)
+                color = class_to_color_map[o["class id"]]
+                seg[np.array(o["seg mask"]) > 0] = color
 
-            # add the robot agent
-            x.append(pose[0][0])  # right
-            y.append(pose[0][2])  # up
-            z.append(pose[0][1])  # forward
-            agent_c = np.array([[0, 0, 0, 1]])
-            c = np.concatenate((c, agent_c), axis=0)
-            if x != [] and y != [] and z != []:
-                plot_scatter._offsets3d = (x, y, z)
-                plot_scatter.set_color(c)
+                # add the robot agent
+                x.append(pose[0][0])  # right
+                y.append(pose[0][2])  # up
+                z.append(pose[0][1])  # forward
+                agent_c = np.array([[0, 0, 0, 1]])
+                if x != [] and y != [] and z != []:
+                    plot_scatter._offsets3d = (x, y, z)
+                    plot_scatter.set_color(color)
 
             # update the rgb image
             plot_rgb.set_data(rgb[::-1,:,:])

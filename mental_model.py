@@ -1,7 +1,9 @@
 # mental_model.py: uses the segmentator and the dynamic scene graph to construct and update the mental model
 
 from dsg import dsg
-from segmentation import scene_segmentation
+# from segmentation import scene_segmentation
+from detection import detect
+from segmentation import segment
 import math
 
 class MentalModel:
@@ -11,18 +13,24 @@ class MentalModel:
 
     # updates the DSG from a known pose and RGBD image
     # Coordinate Frame: x (right), y (up), z (forward)
-    def update_from_rgbd_and_pose(self, rgb, depth, pose):
+    def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, seg_threshold=0.1, seg_save_name=None):
         # verify types
-        # segment the RGB into labels and masks
-        labels, seg_masks = scene_segmentation.segmentation(rgb)
-        # overlay the object masks on the depth image
-        objects = []  # resulting objects and their coordinates
+        # get objects in the scene
+        detected_objects, rgb_with_boxes = detect.detect(rgb, classes, seg_threshold, seg_save_name)
+        # segment the objects
+        boxes = [o["box"] for o in detected_objects]
+        seg_masks = segment.segment(rgb, boxes)
+            
+        # make sure the seg mask and detected object dimensions match
+        assert len(detected_objects) == len(seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(seg_masks)}), one of these modules is misperforming."
+        
+        # get the location of the object in 3D space
         for i in range(seg_masks.shape[0]):  # for each observed object
-            mask = depth[seg_masks[i]]  # the depth field corresponding to the mask
+            mask = depth[seg_masks[i] > 0]  # the depth field corresponding to the object mask
             dist = mask.sum() / seg_masks[i].sum()  # mean depth
             indices = seg_masks[i].nonzero()  # get indices of the mask
-            avg_row = indices[:, 0].float().mean()  # get average row
-            avg_col = indices[:, 1].float().mean()  # get average col
+            avg_row = sum(indices[0]) / len(indices[0])  # get average row
+            avg_col = sum(indices[1]) / len(indices[1])  # get average col
             horz_angle = (avg_col - seg_masks[i].shape[1] / 2) / seg_masks[i].shape[1] * self.fov  # get angle left/right from center
             vert_angle = (avg_row - seg_masks[i].shape[0] / 2) / seg_masks[i].shape[0] * self.fov  # get angle up/down from center
             x_pos_local = math.sin(horz_angle) * dist
@@ -33,14 +41,12 @@ class MentalModel:
             x_pos_global = pose[0][0] + math.sin(pose_horz_angle + horz_angle) * dist
             y_pos_global = pose[0][1] + math.sin(pose_vert_angle + vert_angle) * dist  # should use head instead fir eye vert
             z_pos_global = pose[0][2] + math.sin(pose_horz_angle + horz_angle) * dist
-            # print(labels[i], "dist", dist, avg_row, avg_col, "angle", horz_angle, vert_angle, "pos", x_pos_local, y_pos_local, "pose angle", pose_horz_angle, pose_vert_angle, "global", x_pos_global, y_pos_global, z_pos_global)
-            objects.append({
-                "class": labels[i][1],
-                "class id": labels[i][0],
-                "x": float(x_pos_global),
-                "y": float(y_pos_global),
-                "z": float(z_pos_global),
-                "seg mask": seg_masks[i]
-            })
+            detected_objects[i]["x"] = float(x_pos_global)
+            detected_objects[i]["y"] = float(y_pos_global)
+            detected_objects[i]["z"] = float(z_pos_global)
+            detected_objects[i]["seg mask"] = seg_masks[i]
+            
+            # print("OBJ at ", x_pos_global, y_pos_global, z_pos_global, "user at", pose[0][0], pose[0][1], pose[0][2], "user dir", direction)
+            # input()
 
-        return objects
+        return detected_objects
