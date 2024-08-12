@@ -107,3 +107,7 @@ While the process was messy, I think these are the steps:
 4. Should be good to go, if you run into import errors just install the requisite pip packages
 
 `pip3 install python-opencv matplotlib ...`
+
+Detectron2 works OK, but is a bit old and hard to set up. Some peers recommended a GLEE -> SAM2 pipeline for better results and vocabulary.
+
+Installing SAM2 and GLEE was painless, however running GLEE (app.py) required a number of additional pip installs. It is best to see GLEE's INSTALL.md file (from the GLEE GitHub page). Notably, an error "could not import module pycocotools.ytvos" requires that you go to the pycocotools GitHub repo (https://github.com/youtubevos/cocoapi/tree/master/PythonAPI/pycocotools), download the ytvos.py and ytvoseval.py files and place them in the anaconda site packages for pycocotools.
