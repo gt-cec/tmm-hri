@@ -19,7 +19,7 @@ def main(visualize=False):
     
     # choose classes
     classes = ["human", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "bowl", "plant", "television"]
-    depth_classes = ["silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]
+    depth_classes = ["human", "person", "human standing", "person standing", "silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]
     norm = plt.Normalize(vmin=1, vmax=len(classes))
     scalar_mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=colormap)
     class_to_color_map = scalar_mappable.to_rgba([i for i, x in enumerate(classes)])  # color mapper

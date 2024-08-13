@@ -15,28 +15,28 @@ class MentalModel:
     # Coordinate Frame: x (right), y (up), z (forward)
     def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, depth_classes=[], seg_threshold=0.1, seg_save_name=None, depth_test=None):
         # verify types
+        human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
+
         # get objects in the scene
         detected_objects, rgb_with_boxes = detect.detect(rgb, classes, seg_threshold, seg_save_name)
 
         # get humans in the scene
-        detected_humans, _ = detect.detect(rgb, depth_classes, seg_threshold, seg_save_name)
-        detected_objects += detected_humans
+        detected_humans, _ = detect.detect(rgb, depth_classes, 0.1, None)
+        for i in range(len(detected_humans)):
+            detected_humans[i]["class"] = "human"
+            detected_humans[i]["class id"] = human_class_id
 
         # get humans figures using depth, this is used to double check the humans
-        depth_3channel = numpy.expand_dims(depth, axis=0)  # Shape becomes (1, 2, 2)
-        depth_3channel = numpy.tile(depth_3channel, (3, 1, 1))  # Shape becomes (3, 2, 2)
-        depth_detected_objects, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)
-        human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
+        depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
+        depth_detected_objects, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
         for i in range(len(depth_detected_objects)):  # set all outputs to human
             depth_detected_objects[i]["class"] = "human"
             depth_detected_objects[i]["class id"] = human_class_id
         
-        print("DEPTH", depth_detected_objects)
-        
         # remove the humans from the detected objects that do not overlap with the depth 
-        print("DETECTED BEFORE", detected_objects)
-        detected_objects = detect.remove_objects_not_overlapping(detected_objects, depth_detected_objects, overlap_threshold=0.8, classes_to_filter=["human"])
-        print("DETECTED AFTER", detected_objects)
+        detected_humans = detect.remove_objects_not_overlapping(detected_humans, depth_detected_objects, overlap_threshold=0.8, classes_to_filter=["human"])
+
+        detected_objects += detected_humans
 
         # segment the objects
         boxes = [o["box"] for o in detected_objects]

@@ -92,6 +92,7 @@ def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshol
         if o["class"] not in classes:  # ignore check objects not in the main objects
             continue
         classes[o["class"]][1].append(i)  # add the object to this class
+    main_objects_to_remove = []
     for c in classes:  # remove overlapping
         for obj_main_idx in classes[c][0]:  # for each main object in a class
             closest_match_check_classes_idx = None
@@ -102,16 +103,10 @@ def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshol
                     closest_match_check_classes_idx = classes_check_idx
                     closest_match_check_overlap = overlap
             if closest_match_check_classes_idx is None:  # if main object has no check objects, it is not overlapping anything, so delete the main object
-                del objects_main[obj_main_idx]
+                main_objects_to_remove.append(obj_main_idx)
             else:  # otherwise, there is a close match to a check object, so keep the main object and delete the check object from the classes
                 del classes[c][1][closest_match_check_classes_idx]
-    return objects_main  # return the updated objects main, this should modify in-place but users will likely appreciate the confirmation
-
-
-
-
-
-
+    return [x for i, x in enumerate(objects_main) if i not in main_objects_to_remove]  # return the updated objects main
 
 # gets the percent overlap of two boxes, generated with Claude
 def calculate_overlap_percentage(box1, box2):
