@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm
 import matplotlib.font_manager as fm
+import matplotlib.patches
 
 sim_dir = "../Output/human/0"
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
@@ -106,7 +107,7 @@ def main(visualize=False):
         depth_test = cv2.imread("./human_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         depth_test_1channel = depth[:,:,0]
 
-        objects = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4), depth_test=depth_test_1channel)
+        objects, human_detections = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4), depth_test=depth_test_1channel)
 
         if visualize:           
             # add the robot agent
@@ -142,9 +143,18 @@ def main(visualize=False):
 
             # update the rgb image
             plot_rgb.set_data(rgb[::-1,:,:])
+            for patch in ax_rgb.patches + ax_rgb.texts:  # remove existing rectangles
+                patch.remove()
+            for rgb_human in human_detections[0]:  # add rectangles for detected humans
+                ax_rgb.add_patch(matplotlib.patches.Rectangle((rgb_human["box"][0], rgb.shape[1] - rgb_human["box"][1]), rgb_human["box"][2] - rgb_human["box"][0], rgb_human["box"][1] - rgb_human["box"][3], linewidth=1, edgecolor='r', facecolor='none'))
+                ax_rgb.text(rgb_human["box"][0], rgb.shape[1] - rgb_human["box"][1], rgb_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))                
             # update the depth image
-            #plot_depth.set_data(depth[::-1,:,:] / 5)
             plot_depth.set_data(depth[::-1,:,:] / 5)
+            for patch in ax_depth.patches + ax_depth.texts:  # remove existing rectangles
+                patch.remove()
+            for depth_human in human_detections[1]:  # add rectangles for detected humans
+                ax_depth.add_patch(matplotlib.patches.Rectangle((depth_human["box"][0], depth.shape[1] - depth_human["box"][1]), depth_human["box"][2] - depth_human["box"][0], depth_human["box"][1] - depth_human["box"][3], linewidth=1, edgecolor='r', facecolor='none'))
+                ax_depth.text(depth_human["box"][0], depth.shape[1] - depth_human["box"][1], depth_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))                
             # update the seg image
             plot_seg.set_data(seg[::-1,:,:])
             text_frame.set_text(f"Frame: {frame_id}")

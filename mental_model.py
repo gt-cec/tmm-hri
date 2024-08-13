@@ -28,15 +28,14 @@ class MentalModel:
 
         # get humans figures using depth, this is used to double check the humans
         depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
-        depth_detected_objects, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
-        for i in range(len(depth_detected_objects)):  # set all outputs to human
-            depth_detected_objects[i]["class"] = "human"
-            depth_detected_objects[i]["class id"] = human_class_id
+        depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
+        for i in range(len(depth_detected_humans)):  # set all outputs to human
+            depth_detected_humans[i]["class"] = "human"
+            depth_detected_humans[i]["class id"] = human_class_id
         
-        # remove the humans from the detected objects that do not overlap with the depth 
-        detected_humans = detect.remove_objects_not_overlapping(detected_humans, depth_detected_objects, overlap_threshold=0.8, classes_to_filter=["human"])
-
-        detected_objects += detected_humans
+        # remove the humans from the detected humans that do not overlap with the depth 
+        filtered_detected_humans = detect.remove_objects_not_overlapping(detected_humans, depth_detected_humans, overlap_threshold=0.8, classes_to_filter=["human"])
+        detected_objects += filtered_detected_humans
 
         # segment the objects
         boxes = [o["box"] for o in detected_objects]
@@ -71,4 +70,4 @@ class MentalModel:
             print("OBJ at ", detected_objects[i]["debug"])
             # input()
 
-        return detected_objects
+        return detected_objects, (detected_humans, depth_detected_humans, filtered_detected_humans)
