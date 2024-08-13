@@ -54,18 +54,18 @@ def detect(image, classes, threshold=0.1, save_name=None):
     for class_id in object_idx_by_class_id:
         for object_idx_1 in range(len(object_idx_by_class_id[class_id])):
             for object_idx_2 in range(object_idx_1, len(object_idx_by_class_id[class_id])):
-                if object_idx_1 == object_idx_2:
+                # skip if same index or we have already thrown out one of the objects
+                if object_idx_1 == object_idx_2 or objects[object_idx_by_class_id[class_id][object_idx_2]] is None or objects[object_idx_by_class_id[class_id][object_idx_1]] is None:
                     continue
                 if calculate_overlap_percentage(objects[object_idx_by_class_id[class_id][object_idx_1]]["box"], objects[object_idx_by_class_id[class_id][object_idx_2]]["box"]) > overlap_threshold:
-                    print("OVERLAPPPP")
                     if objects[object_idx_by_class_id[class_id][object_idx_1]]["confidence"] > objects[object_idx_by_class_id[class_id][object_idx_2]]["confidence"]:
                         objects[object_idx_by_class_id[class_id][object_idx_2]] = None
                     else:
                         objects[object_idx_by_class_id[class_id][object_idx_1]] = None
-    objects = [x for x in objects if x is not None]
+    objects = [x for x in objects if x is not None]  # remove the objects we filtered out
                     
 
-    if save_name is not None:
+    if False and save_name is not None:
         image = Image.fromarray(image)
         draw = ImageDraw.Draw(image)
         
@@ -77,6 +77,41 @@ def detect(image, classes, threshold=0.1, save_name=None):
         image.save(save_name + ".png")
 
     return objects, image
+
+# removes boxes from detected object set A (main set) that are not in detected object set B (check set)
+# this is used for syncing RGB and depth detected objects
+def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshold=0.8, classes_to_filter=None):
+    classes = {}  # organize by class
+    for i, o in enumerate(objects_main):  # set up classes for the main objects
+        if classes_to_filter is None or o["class"] not in classes_to_filter:  # if classes to filter were specified, don't count classes that were not specified
+            continue
+        if o["class"] not in classes:
+            classes[o["class"]] = [[], []]  # 0th index: main, 1st index: check
+        classes[o["class"]][0].append(i)  # add the object to this class
+    for i, o in enumerate(objects_check):  # set up classes for the check objects
+        if o["class"] not in classes:  # ignore check objects not in the main objects
+            continue
+        classes[o["class"]][1].append(i)  # add the object to this class
+    for c in classes:  # remove overlapping
+        for obj_main_idx in classes[c][0]:  # for each main object in a class
+            closest_match_check_classes_idx = None
+            closest_match_check_overlap = 0
+            for classes_check_idx, obj_check_idx in enumerate(classes[c][1]):  # for each check object of that class
+                overlap = calculate_overlap_percentage(objects_main[obj_main_idx]["box"], objects_check[obj_check_idx]["box"])
+                if overlap >= overlap_threshold and overlap > closest_match_check_overlap:  # check if the overlap passes the threshold and is more than other overlaps
+                    closest_match_check_classes_idx = classes_check_idx
+                    closest_match_check_overlap = overlap
+            if closest_match_check_classes_idx is None:  # if main object has no check objects, it is not overlapping anything, so delete the main object
+                del objects_main[obj_main_idx]
+            else:  # otherwise, there is a close match to a check object, so keep the main object and delete the check object from the classes
+                del classes[c][1][closest_match_check_classes_idx]
+    return objects_main  # return the updated objects main, this should modify in-place but users will likely appreciate the confirmation
+
+
+
+
+
+
 
 # gets the percent overlap of two boxes, generated with Claude
 def calculate_overlap_percentage(box1, box2):

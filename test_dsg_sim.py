@@ -6,17 +6,20 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm
+import matplotlib.font_manager as fm
 
 sim_dir = "../Output/human/0"
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
 
-colormap = matplotlib.cm.hsv
+colormap = matplotlib.cm.hsv  # for the semantic segmentation
+plt.rcParams['font.family'] = 'Roboto'
 
 def main(visualize=False):
     print("Running on simulator data.")
     
     # choose classes
-    classes = ["person standing", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "bowl", "plant", "television"]
+    classes = ["human", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "bowl", "plant", "television"]
+    depth_classes = ["silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]
     norm = plt.Normalize(vmin=1, vmax=len(classes))
     scalar_mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=colormap)
     class_to_color_map = scalar_mappable.to_rgba([i for i, x in enumerate(classes)])  # color mapper
@@ -28,10 +31,11 @@ def main(visualize=False):
         for line in f.readlines()[1:]:
             vals = line.split(" ")
             frame = vals[0]
+            vals = vals[1:]
             hip_loc = extract_pose_loc_for_index(vals, 0, cast_to_numpy_array=True)
             left_shoulder_loc = extract_pose_loc_for_index(vals, 11, cast_to_numpy_array=True)
             right_shoulder_loc = extract_pose_loc_for_index(vals, 12, cast_to_numpy_array=True)
-            forward = np.cross(left_shoulder_loc - hip_loc, right_shoulder_loc - hip_loc)  # forward vector
+            forward = np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)  # forward vector
             forward /= np.linalg.norm(forward)
             poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, forward]
 
@@ -40,34 +44,50 @@ def main(visualize=False):
     # init the visualization
     if visualize:
         fig = plt.figure()
+        fig.tight_layout()
         # scatter plot axis
-        ax_scatter = fig.add_subplot(221, projection='3d')
-        ax_scatter.set_xlim((-1000, 1000))
-        ax_scatter.set_ylim((-1000, 1000))
-        ax_scatter.set_zlim((-1000, 1000))
-        xs, ys, zs = [], [], []
-        plot_scatter = ax_scatter.scatter(xs, ys, zs)
+        ax_scatter = fig.add_subplot(221)#, projection='3d')  # technically can be 3D, using 2D for simplicity
+        ax_scatter.set_xlim((-10, 10))
+        ax_scatter.set_ylim((-10, 10))
+        ax_scatter.set_aspect('equal')
+        ax_scatter.set_axis_off()
+        ax_scatter.set_title("Bird's Eye Semantic Map")
+        xs, ys = [], []
+        plot_scatter = ax_scatter.scatter(xs, ys)
+        # pose lines
+        pose_lines = []
         # rgb view axis
         ax_rgb = fig.add_subplot(222)
         ax_rgb.set_xlim(0, 512)
         ax_rgb.set_ylim(0, 512)
         ax_rgb.set_aspect('equal')
         ax_rgb.set_axis_off()
+        ax_rgb.set_title("Robot RGB Camera")
         plot_rgb = ax_rgb.imshow(np.zeros((512, 512, 3)))
-        # depth view axis
-        ax_depth = fig.add_subplot(223)
-        ax_depth.set_xlim(0, 512)
-        ax_depth.set_ylim(0, 512)
-        ax_depth.set_aspect('equal')
-        ax_depth.set_axis_off()
-        plot_depth = ax_depth.imshow(np.zeros((512, 512, 1)))
         # segmentation view axis
-        ax_seg = fig.add_subplot(224)
+        ax_seg = fig.add_subplot(223)
         ax_seg.set_xlim(0, 512)
         ax_seg.set_ylim(0, 512)
         ax_seg.set_aspect('equal')
         ax_seg.set_axis_off()
+        ax_seg.set_title("Camera Segmentation")
         plot_seg = ax_seg.imshow(np.zeros((512, 512, 1)))
+        # depth view axis
+        ax_depth = fig.add_subplot(224)
+        ax_depth.set_xlim(0, 512)
+        ax_depth.set_ylim(0, 512)
+        ax_depth.set_aspect('equal')
+        ax_depth.set_axis_off()
+        ax_depth.set_title("Robot Depth Camera")
+        plot_depth = ax_depth.imshow(np.zeros((512, 512, 1)))
+        # annotate the figure
+        fig.text(0.01, 0.99, "Demo of Semantic Map Construction", ha='left', va='top', fontsize=14, color='black')
+        classes_vert = 0.90
+        fig.text(0.01, classes_vert, "Classes:", ha='left', va='top', fontsize=10, color='black')
+        for i, c in enumerate(classes):
+            classes_vert -= 0.03
+            fig.text(0.01, classes_vert, "    ҉  " + c, ha='left', va='top', fontsize=8, color=class_to_color_map[i])
+        text_frame = fig.text(0.99, 0.01, "Frame: N/A", ha="right", va="bottom", fontsize=8, color="black")
 
     pose_frame_ids = sorted(poses.keys())
 
@@ -82,33 +102,54 @@ def main(visualize=False):
         depth = cv2.imread(sim_dir + "/Action_" + str(frame_id).zfill(4) + "_0_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         depth_1channel = depth[:,:,0]
         pose = poses[str(int(frame_id))]
-        objects = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, 0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
-        if visualize:
-            x = [o["x"] for o in objects]  # x coordinates for plotting
-            y = [o["y"] for o in objects]  # y coordinates for plotting
-            z = [o["z"] for o in objects]  # z coordinates for plotting
+        depth_test = cv2.imread("./human_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
+        depth_test_1channel = depth[:,:,0]
+
+        objects = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4), depth_test=depth_test_1channel)
+
+        if visualize:           
+            # add the robot agent
+            x, y, z = [], [], []
+            x.append(pose[0][0])  # right
+            y.append(pose[0][2])  # forward
+            z.append(pose[0][1])  # up
+            plot_colors = [(0, 0, 0, 1)] # initialize with the agent pose
+
+            # fade out the previous motion colors
+            for i, line in enumerate(pose_lines):
+                alpha = line.get_alpha()
+                if alpha is not None:  # if the line has an alpha value
+                    if alpha <= 0.05:  # delete if going invisible
+                        del pose_lines[i]
+                        continue
+                    line.set_alpha(alpha - 0.05)  # decrease alpha
+
             seg = np.zeros((rgb.shape[0], rgb.shape[1], 4))  # segmentation colors
             for o in objects:  # get the segmentation by color
                 color = class_to_color_map[o["class id"]]
                 seg[np.array(o["seg mask"]) > 0] = color
+                x.append(o["x"])
+                y.append(o["y"])
+                plot_colors.append(color)
 
-                # add the robot agent
-                x.append(pose[0][0])  # right
-                y.append(pose[0][2])  # up
-                z.append(pose[0][1])  # forward
-                agent_c = np.array([[0, 0, 0, 1]])
-                if x != [] and y != [] and z != []:
-                    plot_scatter._offsets3d = (x, y, z)
-                    plot_scatter.set_color(color)
+            if x != [] and y != [] and z != []:  # update the plot points and colors
+                plot_scatter.set_offsets(np.c_[x, y])
+                print("COLORS", len(plot_colors))
+                plot_scatter.set_color(plot_colors)
+            line = ax_scatter.axes.plot((pose[0][0], pose[0][0] + pose[-1][0]), (pose[0][2], pose[0][2] + pose[-1][2]), color=(0, 0, 0), alpha=1.0)
+            pose_lines.append(line[0])
 
             # update the rgb image
             plot_rgb.set_data(rgb[::-1,:,:])
             # update the depth image
+            #plot_depth.set_data(depth[::-1,:,:] / 5)
             plot_depth.set_data(depth[::-1,:,:] / 5)
             # update the seg image
             plot_seg.set_data(seg[::-1,:,:])
-            plt.pause(.1)
+            text_frame.set_text(f"Frame: {frame_id}")
+            plt.savefig(f"frames/frame_{frame_id}.png", dpi=300)
+            plt.pause(.01)
 
     return
 
