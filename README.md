@@ -18,7 +18,7 @@ We chose to go with VirtualHome for ease of development, however may later move 
 
 ### Requirements
 
-- VirtualHome, place in your project workspace, **cloning this repo includes VirtualHome, just get the virtualhome linux_exec data folder and place in the unity_simulator folder, as it was too big to push onto GitHub**
+- VirtualHome, place in your project workspace, following the instructions on their GitHub
 - PyTorch
 - HRNet
 - HYDRA-ROS
@@ -66,8 +66,6 @@ Which can be run with:
 
 `rosbag play uhumans2_nofrontlidar.bag --topics /tesse/depth_cam/mono/image_raw /tesse/left_cam/rgb/image_raw /tesse/seg_cam/camera_info /tesse/seg_cam/rgb/image_raw /tf`
 
-
-
 ### Scene Graph
 
 We use Hydra to construct a scene graph from the robot's perspective. This requires us to give the robot's depth camera (parsed from the simulator output), the robot's pose/orientation (used the hip as the x/y location and the normal from the hip+Lshoulder+Rshoulder plane as the forward direction), and a semantic map (used HRNet).
@@ -76,7 +74,7 @@ We downloaded an HRNET model and are using the ADE dataset because the Hydra pap
 
 I found that the launch file has an interesting relationship with the ground truth, to a point where I wonder if it is reliant on the ground truth data, as HYDRA silently failed to generate a scene graph when the `use_gt_semantics` switch was set to false. It looks like Hydra is in the middle of a quality-of-life upgrade (and is still reliant on some code locked behind MIT's internal GitHub), so we are going to make our own dynamic scene graph generator in the meantime.
 
-### Custom DSG: Segmentation (Detectron2)
+### (old) Custom DSG: Segmentation (Detectron2)
 
 In our effort to create our own DSG, we are using Detectron2 for the semantic segmentation. I was unable to get detectron working on my local computer or the GT compute cluster, for some arcane install errors, so I had to use a conda environment.
 
@@ -107,3 +105,26 @@ While the process was messy, I think these are the steps:
 4. Should be good to go, if you run into import errors just install the requisite pip packages
 
 `pip3 install python-opencv matplotlib ...`
+
+While I was able to hesitantly get Detectron2 to work, it wasn't great (fixed classes) and I could not get the GPU version to work (at the time of writing, only available for CUDA 12.1 while my GPU had CUDA 12.2). Also, there are more modern options today.
+
+### Custom DSG: Segmentation (OWL2 + SAM2)
+
+I then tried a different pipeline of using OWL2 for object detection, and SAM2 for object segmentation. OWL2 allows for open vocabulary object detection which is useful for a household environment and outputs bounding boxes for the objects. SAM2 does not take in a class, only bounding boxes or known points/paths, returning the most likely intended object. From our test cases this pipeline of open vocab detection -> bounding boxes -> segmentation works very well, and to greater fidelity than SAM2. Additionally, the two models are maintained and recent.
+
+I installed OWL2 and SAM2 using their GitHub guides, to little issue.
+
+I did need to set a number of environment variables:
+```
+export CUDA=12.2
+export CUDA_HOME=~/anaconda3/envs/sam2  # NOTE: replace this with your anaconda environment path, I named mine sam2 for no particular reason.
+export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
+export CUDA_PATH=$CUDA_HOME
+export LIBRARY_PATH=$CUDA_HOME/nvvm/lib64:$LIBRARY_PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/nvvm/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export NVCC=$CUDA_HOME/bin/nvcc
+export CFLAGS="-I$CUDA_HOME/include $CFLAGS"
+export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME
+export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
+```
