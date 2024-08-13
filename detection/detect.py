@@ -57,7 +57,7 @@ def detect(image, classes, threshold=0.1, save_name=None):
                 # skip if same index or we have already thrown out one of the objects
                 if object_idx_1 == object_idx_2 or objects[object_idx_by_class_id[class_id][object_idx_2]] is None or objects[object_idx_by_class_id[class_id][object_idx_1]] is None:
                     continue
-                if calculate_overlap_percentage(objects[object_idx_by_class_id[class_id][object_idx_1]]["box"], objects[object_idx_by_class_id[class_id][object_idx_2]]["box"]) > overlap_threshold:
+                if calculate_overlap_proportion(objects[object_idx_by_class_id[class_id][object_idx_1]]["box"], objects[object_idx_by_class_id[class_id][object_idx_2]]["box"]) > overlap_threshold:
                     if objects[object_idx_by_class_id[class_id][object_idx_1]]["confidence"] > objects[object_idx_by_class_id[class_id][object_idx_2]]["confidence"]:
                         objects[object_idx_by_class_id[class_id][object_idx_2]] = None
                     else:
@@ -98,7 +98,7 @@ def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshol
             closest_match_check_classes_idx = None
             closest_match_check_overlap = 0
             for classes_check_idx, obj_check_idx in enumerate(classes[c][1]):  # for each check object of that class
-                overlap = calculate_overlap_percentage(objects_main[obj_main_idx]["box"], objects_check[obj_check_idx]["box"])
+                overlap = calculate_overlap_proportion(objects_main[obj_main_idx]["box"], objects_check[obj_check_idx]["box"])
                 if overlap >= overlap_threshold and overlap > closest_match_check_overlap:  # check if the overlap passes the threshold and is more than other overlaps
                     closest_match_check_classes_idx = classes_check_idx
                     closest_match_check_overlap = overlap
@@ -109,7 +109,7 @@ def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshol
     return [x for i, x in enumerate(objects_main) if i not in main_objects_to_remove]  # return the updated objects main
 
 # gets the percent overlap of two boxes, generated with Claude
-def calculate_overlap_percentage(box1, box2):
+def calculate_overlap_proportion(box1, box2):
     # unpack the coordinates
     x1_1, y1_1, x2_1, y2_1 = box1
     x1_2, y1_2, x2_2, y2_2 = box2
@@ -130,5 +130,5 @@ def calculate_overlap_percentage(box1, box2):
     box2_area = (x2_2 - x1_2) * (y2_2 - y1_2)
     
     union_area = box1_area + box2_area - intersection_area  # calculate the union area
-    overlap_percentage = (intersection_area / union_area) * 100  # calculate the overlap percentage
-    return overlap_percentage
+    overlap_proportion = intersection_area / union_area  # calculate the overlap proportion
+    return overlap_proportion

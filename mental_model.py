@@ -12,7 +12,7 @@ class MentalModel:
         self.fov = 1.0472  # 60deg in radians
 
     # updates the DSG from a known pose and RGBD image
-    # Coordinate Frame: x (right), y (up), z (forward)
+    # Coordinate Frame: x (right), y (forward), z (up)
     def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, depth_classes=[], seg_threshold=0.1, seg_save_name=None, depth_test=None):
         # verify types
         human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
@@ -66,8 +66,8 @@ class MentalModel:
             detected_objects[i]["z"] = float(z_pos_global)
             detected_objects[i]["seg mask"] = seg_masks[i]
             detected_objects[i]["debug"] = f"class {detected_objects[i]["class"]} dist {dist} horz angle {horz_angle} x local {x_pos_local} horz angle global {pose_horz_angle + horz_angle} x global {x_pos_global} y global {y_pos_global}"
-            
             print("OBJ at ", detected_objects[i]["debug"])
-            # input()
+
+        dsg.update(detected_objects)
 
         return detected_objects, (detected_humans, depth_detected_humans, filtered_detected_humans)

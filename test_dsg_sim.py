@@ -136,7 +136,6 @@ def main(visualize=False):
 
             if x != [] and y != [] and z != []:  # update the plot points and colors
                 plot_scatter.set_offsets(np.c_[x, y])
-                print("COLORS", len(plot_colors))
                 plot_scatter.set_color(plot_colors)
             line = ax_scatter.axes.plot((pose[0][0], pose[0][0] + pose[-1][0]), (pose[0][2], pose[0][2] + pose[-1][2]), color=(0, 0, 0), alpha=1.0)
             pose_lines.append(line[0])
