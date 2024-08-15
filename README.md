@@ -128,3 +128,7 @@ export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME
 export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 ```
+
+### Challenges with VirtualHome
+
+For some reason, installing virtualhome ran into various problems with setuptools. I was instead able to modify the base package and import it as a submodule. I submitted pull requests to the main branch to support these changes.

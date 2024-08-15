@@ -24,4 +24,8 @@ detectron2*
 # segmentation: ignore .ipynb files
 segmentation/scene_segmentation.ipynb
 
+# useful scripts
+!frames_to_vid.sh
+!rearrange.json
+
 __pycache__
