@@ -3,7 +3,7 @@ from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
 from virtualhome.virtualhome.demo.utils_demo import *
 import glob
 from PIL import Image
-import random, threading, time, subprocess, datetime
+import random, threading, time, subprocess, datetime, os
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
@@ -186,13 +186,18 @@ if __name__ == "__main__":
     output_folder = "episodes"
     episode_count = 25
     num_agents = 2
-    for i in range(episode_count):
-        filename = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
-        print("Starting", filename)
-        __reset_sim__()
-        res, num_complete = move_agents(30, num_agents=num_agents, output_folder=output_folder, file_name_prefix=filename)
-        with open(output_folder + "/" + filename + "/episode_info.txt", "w") as f:
-            f.write(f"{filename}\n{num_complete}\n{res}")
-        print("Completed agent run", filename, ": ended gracefully?", res, "Completed", num_complete)
+    for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
+        episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
+        num_complete = 0  # number of pick/place cycles completed
+        while num_complete < 5:  # repeat until the sim succeeds at 5+ cycles
+            if os.path.isdir(output_folder + "/" + episode_name):  # if the episode already exists, overwrite it (e.g., did not complete enough cycles)
+                subprocess.run(["rm", "-rf", output_folder + "/" + episode_name])
+                print("Removed previous run because it did not complete enough cycles:", num_complete)
+            print("Starting", episode_name)
+            __reset_sim__()  # reload the simulator
+            res, num_complete = move_agents(30, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
+            with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
+                f.write(f"{episode_name}\n{num_complete}\n{res}")
+            print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
     
 print("Done!")
