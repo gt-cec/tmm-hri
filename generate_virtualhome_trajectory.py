@@ -115,7 +115,14 @@ def __reset_sim__():
     time.sleep(5)
     comm.add_character('Chars/Male2', initial_room='kitchen')  # add two agents this time
     comm.add_character('Chars/Male2', initial_room='kitchen')
-    return
+
+    instance_colormap = {}
+    obj_colors = comm.instance_colors()[1]
+    _, g = comm.environment_graph()
+    for n in g["nodes"]:
+        rgb_color = str(obj_colors[str(n["id"])][0] * 256) + "," + str(obj_colors[str(n["id"])][1] * 256) + "," + str(obj_colors[str(n["id"])][2] * 256)
+        instance_colormap[rgb_color] = (n["id"], n["class_name"], n["bounding_box"]["center"])
+    return instance_colormap
 
 # sends an action to all agents
 def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surface_ids:list=None, sample_source:str=None, output_folder:str="Output/", file_name_prefix:str="script"):
@@ -194,10 +201,10 @@ if __name__ == "__main__":
                 subprocess.run(["rm", "-rf", output_folder + "/" + episode_name])
                 print("Removed previous run because it did not complete enough cycles:", num_complete)
             print("Starting", episode_name)
-            __reset_sim__()  # reload the simulator
+            instance_colormap = __reset_sim__()  # reload the simulator
             res, num_complete = move_agents(30, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
             with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
-                f.write(f"{episode_name}\n{num_complete}\n{res}")
+                f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
             print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
     
 print("Done!")

@@ -1,7 +1,7 @@
 # dsg_sim.py: construct a DSG from a simulator
 
 import mental_model
-import os, glob
+import os, glob, ast
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,26 +9,34 @@ import matplotlib.cm
 import matplotlib.font_manager as fm
 import matplotlib.patches
 
-sim_dir = "../Output/human/0"
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
 
 colormap = matplotlib.cm.hsv  # for the semantic segmentation
 plt.rcParams['font.family'] = 'Roboto'
 
-def main(visualize=False):
-    print("Running on simulator data.")
+def main(episode_dir=None, visualize=False):
+    # validate episode_dir
+    assert episode_dir is not None, "Missing episode_dir param"
+    episode_name = episode_dir.split("/")[-1]
+
+    print(f"Running on simulator data, episode: {episode_name}")
     
     # choose classes
-    classes = ["human", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "bowl", "plant", "television"]
+    classes = ["human", "cup", "oven", "sink", "bottle", "fork", "knife", "fruit", "vegetable", "bottle", "bed", "pillow", "lamp", "book", "trash can", "refrigerator", "plate", "bowl", "plant", "tvstand"]
+    class_to_class_id = {o : i for i, o in enumerate(classes)}
     depth_classes = ["human", "person", "human standing", "person standing", "silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]
     norm = plt.Normalize(vmin=1, vmax=len(classes))
     scalar_mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=colormap)
     class_to_color_map = scalar_mappable.to_rgba([i for i, x in enumerate(classes)])  # color mapper
 
-    # get the poses
-    print("Reading poses")
+    # get the ground truth color map
+    with open(f"{episode_dir}/episode_info.txt") as f:
+        gt_semantic_colormap = ast.literal_eval(f.readlines()[3])
+
+    # get the agent poses
+    print("Reading agent poses", f"{episode_dir}/0/pd_{episode_name}.txt")
     poses = {}
-    with open(sim_dir + "/pd_human.txt") as f:
+    with open(f"{episode_dir}/0/pd_{episode_name}.txt") as f:
         for line in f.readlines()[1:]:
             vals = line.split(" ")
             frame = vals[0]
@@ -40,7 +48,7 @@ def main(visualize=False):
             forward /= np.linalg.norm(forward)
             poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, forward]
 
-    print("Done reading poses")
+    print("Done reading poses", len(poses))
 
     # init the visualization
     if visualize:
@@ -92,22 +100,25 @@ def main(visualize=False):
 
     pose_frame_ids = sorted(poses.keys())
 
-    frames = sorted([int(x.split("_")[1]) for x in os.listdir(sim_dir) if x.startswith("Action") and x.endswith(".png")])  # get frames, the .png filter prevents duplicates (each frame has .png and .exr)
-    robot_mm = mental_model.MentalModel()
+    frames = sorted([int(x.split("_")[1]) for x in os.listdir(episode_dir + "/0") if x.startswith("Action") and x.endswith(".png")])  # get frames, the .png filter prevents duplicates (each frame has .png and .exr)
+    
+    robot_mm = mental_model.MentalModel()  # initialize the robot's mental model
+
+    initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][1], "z": gt_semantic_colormap[k][2][2]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
+    robot_mm.initialize(objects=initial_objects, verbose=True)  # set the initial environment state
+
+    # run through frames and update mental models
     for frame_id in frames:
         if str(frame_id) not in pose_frame_ids:  # shouldn't happen (means pose data and frame data are misaligned), but just in case
             continue
-        print("Pulling frame", frame_id)
-        bgr = cv2.imread(sim_dir + "/Action_" + str(frame_id).zfill(4) + "_0_normal.png")
+        bgr = cv2.imread(episode_dir + "/0/Action_" + str(frame_id).zfill(4) + "_0_normal.png")
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
-        depth = cv2.imread(sim_dir + "/Action_" + str(frame_id).zfill(4) + "_0_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
+        depth = cv2.imread(episode_dir + "/0/Action_" + str(frame_id).zfill(4) + "_0_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         depth_1channel = depth[:,:,0]
+        gt_semantic = cv2.imread(episode_dir + "/0/Action_" + str(frame_id).zfill(4) + "_0_seg_inst.png")  # if gt_semantic is passed in, it will be used. If not, the RGB image will be segmented.
+        gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB)
         pose = poses[str(int(frame_id))]
-
-        depth_test = cv2.imread("./human_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
-        depth_test_1channel = depth[:,:,0]
-
-        objects, human_detections = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4), depth_test=depth_test_1channel)
+        objects, human_detections = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
         if visualize:           
             # add the robot agent
@@ -142,6 +153,7 @@ def main(visualize=False):
 
             # update the rgb image
             plot_rgb.set_data(rgb[::-1,:,:])
+            # plot_rgb.set_data(gt_semantic[::-1,:,:])
             for patch in ax_rgb.patches + ax_rgb.texts:  # remove existing rectangles
                 patch.remove()
             for rgb_human in human_detections[0]:  # add rectangles for detected humans
@@ -169,5 +181,7 @@ def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
 
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
-    main(visualize=True)
+    episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
+    episode_dir = f"episodes/{episode_name}"
+    main(episode_dir=episode_dir, visualize=True)
     print("Done.")
