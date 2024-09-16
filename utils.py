@@ -1,0 +1,67 @@
+# utils.py: functions used by multiple scripts
+
+import numpy as np
+import ast, math, os
+
+# get the x/y/z coordinates of an index from the pose array
+def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
+    r = [float(pose_list[3 * index + 0]), float(pose_list[3 * index + 1]), float(pose_list[3 * index + 2])]
+    return np.array(r) if cast_to_numpy_array else r
+
+# project visually observed objects from the agent's frame, sim fov = 1.0472rad = 60deg
+def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, seg_masks, depth, fov=1.0472):
+    # get the location of the object in 3D space
+    for i in range(seg_masks.shape[0]):  # for each observed object
+        mask = depth[seg_masks[i] > 0]  # the depth field corresponding to the object mask
+        dist = mask.sum() / seg_masks[i].sum()  # mean depth
+        indices = seg_masks[i].nonzero()  # get indices of the mask
+        avg_row = sum(indices[0]) / len(indices[0])  # get average row
+        avg_col = sum(indices[1]) / len(indices[1])  # get average col
+        horz_angle = (avg_col - seg_masks[i].shape[1] / 2) / seg_masks[i].shape[1] * fov  # get angle left/right from center
+        vert_angle = (avg_row - seg_masks[i].shape[0] / 2) / seg_masks[i].shape[0] * fov  # get angle up/down from center
+        x_pos_local = math.sin(horz_angle) * dist
+        z_pos_local = math.sin(vert_angle) * dist
+        direction = agent_pose[-1]  # forward vector
+        pose_horz_angle = math.atan2(direction[2], direction[0])  # for the pose, z is horz plan up (y), x is horz plan right (x)
+        pose_vert_angle = math.asin(direction[1])  # for the pose, y is the vert plan up, so angle is y / 1
+        x_pos_global = agent_pose[0][0] + math.cos(pose_horz_angle - horz_angle) * dist
+        y_pos_global = agent_pose[0][2] + math.sin(pose_horz_angle - horz_angle) * dist
+        z_pos_global = agent_pose[0][1] + math.sin(pose_vert_angle - vert_angle) * dist  # in the future, should use head instead for eye vert
+        detected_objects[i]["x"] = float(x_pos_global)
+        detected_objects[i]["y"] = float(y_pos_global)
+        detected_objects[i]["z"] = float(z_pos_global)
+        detected_objects[i]["seg mask"] = seg_masks[i]
+        detected_objects[i]["debug"] = {"dist": dist, "pose horz angle": pose_horz_angle, "horz angle": horz_angle, "horz angle global": pose_horz_angle + horz_angle, "x local": x_pos_local, "x global": x_pos_global, "y global": y_pos_global}
+    return detected_objects
+
+# get the agent pose in each frame
+def get_agent_pose_per_frame(episode_dir:str, episode_name:str, agent:str) -> dict:
+    poses = {}
+    with open(f"{episode_dir}/{agent}/pd_{episode_name}.txt") as f:
+        lines = f.readlines()[1:]
+        for line in lines:
+            vals = line.split(" ")
+            frame = vals[0]
+            vals = vals[1:]
+            hip_loc = extract_pose_loc_for_index(vals, 0, cast_to_numpy_array=True)
+            left_shoulder_loc = extract_pose_loc_for_index(vals, 11, cast_to_numpy_array=True)
+            right_shoulder_loc = extract_pose_loc_for_index(vals, 12, cast_to_numpy_array=True)
+            left_hand_loc = extract_pose_loc_for_index(vals, 24, cast_to_numpy_array=True)  # thumb proximal
+            right_hand_loc = extract_pose_loc_for_index(vals, 39, cast_to_numpy_array=True)
+            forward = np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)  # forward vector
+            forward /= np.linalg.norm(forward)
+            poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, left_hand_loc, right_hand_loc, forward]
+    return poses
+
+# get frame IDs for an agent
+def get_frames_filenames(episode_dir:str, episode_name:str, agent:str) -> dict:
+    return sorted([int(x.split("_")[1]) for x in os.listdir(f"{episode_dir}/{agent}") if x.startswith("Action") and x.endswith(".png")])  # get frames, the .png filter prevents duplicates (each frame has .png and .exr)
+
+# get the ground truth color map
+def get_ground_truth_semantic_colormap(episode_dir):
+    with open(f"{episode_dir}/episode_info.txt") as f:
+        return ast.literal_eval(f.readlines()[3])
+    
+# euclidean distance
+def dist_sq(a, b):
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2

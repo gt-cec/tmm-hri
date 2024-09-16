@@ -86,17 +86,13 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
     segments = np.empty(gt_instances_image.shape[:2])
     segments = segments[np.newaxis, ...]
     unique_colors = np.unique(gt_instances_image.reshape(-1, gt_instances_image.shape[-1]), axis=0)
-    print("Unique colors", unique_colors)
     for color_unique in unique_colors:
         color_unique_reformatted = f"[{str(color_unique[0])}, {str(color_unique[1])}, {str(color_unique[2])}]"
-        if color_unique_reformatted == "[116, 69, 93]":
-            print("PLATEEEEE", color_unique_reformatted)
         if color_unique_reformatted not in gt_rounded_colors_to_actual_colors:  # catch colors not in the ground truth colors
             continue
         color_actual = gt_rounded_colors_to_actual_colors[color_unique_reformatted]  # set to the keys of the ground truth instances
         if classes != [] and gt_instances_color_map[color_actual][1] not in classes:  # catch classes that are not in the filter in list
             continue
-        print("FOUND COLORRR", color_unique_reformatted, gt_instances_color_map[color_actual], np.argwhere(np.all(gt_instances_image[:,:] == color_unique, axis=-1)))
         segment_2d = np.all(gt_instances_image[:,:] == color_unique, axis=-1)
         segment = segment_2d[np.newaxis, ...]
         true_indices = np.argwhere(segment_2d)
@@ -104,23 +100,16 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
             min_coords = true_indices.min(axis=0)
             max_coords = true_indices.max(axis=0)
             box = np.array((min_coords, max_coords))
-            print("!!!!!!", segments.shape, segment.shape, true_indices.shape, box.shape)
             segments = np.concatenate((segments, segment), axis=0)
-            print(">>>>>>>", segments.shape)
-            print("BOX", box)
-            print("HAVE OBJ", color_unique_reformatted, gt_instances_color_map[color_actual], box)
             obj_class = gt_instances_color_map[color_actual][1]
             objects.append({
                 "class": obj_class,
-                "class id": class_to_class_id[obj_class] if class_to_class_id != [] else classes.index(obj_class),
+                "class id": class_to_class_id[obj_class] if class_to_class_id != [] else classes.index(obj_class) if classes != [] else -1,
                 "confidence": 1,  # perfect confidence from simulator 
                 "box": box, 
                 "center": [(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2]
             })
-        # else:
-            # print("Did not find color", color_list, "of class", gt_instances_color_map[color])
     segments = segments[1:,:,:]
-    print("res", objects, segments.shape)
     return objects, segments
 
 # removes boxes from detected object set A (main set) that are not in detected object set B (check set)

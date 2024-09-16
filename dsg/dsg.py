@@ -4,7 +4,7 @@ from .node import Node  # for scene object
 
 # constructs, maintains, and resolves a scene graph from inputs of sighted object classes and locations
 class DSG:
-    def __init__(self, same_location_threshold=4):
+    def __init__(self, objects:list=[], same_location_threshold:int=4):
         # public variables
         self.objects = {}  # dictionary of object ID : Node (environment object)
         self.lost_object_ids = []  # list of object IDs that the agent has lost track of
@@ -12,6 +12,25 @@ class DSG:
 
         # private variables
         self.__objects_by_class__ = {}  # cache the objects in each class, dictionary of object class : str (object ID)
+
+        # if an objects list was provided, initialize the scene to those objects
+        if objects != []:
+            self.initialize_scene(objects)
+        return
+    
+    # initializes the DSG from a list of objects
+    def initialize_scene(self, objects:list, verbose=False) -> None:
+        assert isinstance(objects, list), "Object list used to initialize the DSG must be a list of dictionaries, it is currently not a list"  # check that objects is a list
+        assert len([True for x in objects if not isinstance(x, dict)]) == 0 , "Object list used to initialize the DSG must be a list of dictionaries, a list was passed but some values are not dictionaries" # check that objects only contains dictionaries
+        self.__reset__()  # reset the DSG, clears all objects
+        for obj in objects:  # add each object to the DSG
+            assert "class" in obj, f"object is missing a 'class' attribute: {obj}"
+            assert "x" in obj, f"object is missing a 'x' attribute: {obj}"
+            assert "y" in obj, f"object is missing a 'y' attribute: {obj}"
+            assert "z" in obj, f"object is missing a 'z' attribute: {obj}"
+            self.add_object(obj)  # add the object
+            if verbose:
+                print("Initialized DSG with a new object:", obj)
         return
 
     # add a new object to the scene graph
@@ -58,10 +77,11 @@ class DSG:
         for object_class in closest_objects_by_class:  # resolve each known object
             for known_object_id in closest_objects_by_class[object_class]:
                 [closest_seen_object, _] = min(closest_objects_by_class[object_class][known_object_id], key = lambda x : x[1])  # get the closest object
-                if closest_seen_object in unresolved_seen_objects:
+                found, idx = self.__check_if_object_in_list__(closest_seen_object, unresolved_seen_objects)
+                if found:
                     self.objects[known_object_id].update(x=closest_seen_object["x"], y=closest_seen_object["y"], z=closest_seen_object["z"], last_seen=closest_seen_object["last seen"] if "last seen" in closest_seen_object else None)  # update the known object
                     resolved_known_objects.append(known_object_id)  # set the known object as resolved
-                    unresolved_seen_objects.remove(closest_seen_object)  # remove the seen object from unresolved
+                    del unresolved_seen_objects[idx]  # remove the seen object from unresolved
 
         # raise an error if there are still unresolved objects
         if len(unresolved_seen_objects) > 0:
@@ -79,6 +99,13 @@ class DSG:
             raise KeyError("Given object ID (" + str(object_id) + ") is not in the node table.")
         self.objects[object_id].update(object_class, x, y, z, last_seen)  # update the node
         return
+    
+    # check if a list of objects contains a given object, used so numpy arrays aren't compared
+    def __check_if_object_in_list__(self, o, l):
+        for i in range(len(l)):
+            if l[i]["class"] == o["class"] and l[i]["x"] == o["x"] and l[i]["y"] == o["y"] and l[i]["z"] == o["z"]:
+                return True, i
+        return False, -1
 
     # finds an object of the same class and similar location
     def __find_naive_match__(self, object_class, x, y, z) -> tuple[bool, str]:
@@ -158,6 +185,13 @@ class DSG:
             if not isinstance(seen_object, dict):
                 raise ValueError("Validating seen objects: object is not a dict: " + str(seen_object))
             self.__validate_object_properties__(object_dict=seen_object)  # validate the input, will error if the dictionary is mal-formed
+        return
+    
+    # resets the DSG
+    def __reset__(self) -> None:
+        self.objects.clear()
+        self.lost_object_ids.clear()
+        self.__objects_by_class__.clear()
         return
 
     # returns a string representation of the DSG

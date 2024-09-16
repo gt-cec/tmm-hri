@@ -46,7 +46,6 @@ def move_agents(count, num_agents:int=2, output_folder:str="Episodes", file_name
         elif state == "put":  # place it down
             # get the objects are currently held
             held_objects = {}
-            # print("GLASS", [x for x in g["edges"] if x["from_id"] < 3])
             for obj in [x for x in g["edges"] if x["relation_type"] == "HOLDS_LH" or x["relation_type"] == "HOLDS_RH"]:
                 holder = obj["from_id"] - 1
                 if holder not in held_objects:
