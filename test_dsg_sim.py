@@ -163,7 +163,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
                     ax_depth.text(depth_human["box"][0][0], depth.shape[1] - depth_human["box"][0][1], depth_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))                
             # update the seg image
             plot_seg.set_data(seg[::-1,:,:])
-            text_frame.set_text(f"Frame: {frame_id}  hip shoulder dist {pose[1][1] - pose[0][1]} hand to hip sq dist {round(utils.dist_sq(pose[3], pose[0]), 3)} {round(utils.dist_sq(pose[4], pose[0]), 3)}")
+            text_frame.set_text(f"Frame: {frame_id}")
             plt.savefig(f"frames/frame_{frame_id}.png", dpi=300)
             plt.pause(.01)
 

@@ -28,11 +28,13 @@ def process_sim_run(episode_name, episode_dir):
             seg_image = cv2.cvtColor(seg_image, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
             depth_image = cv2.imread(f"{file_prefix}_depth.exr", cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:,:,0]  # read depth and pull one channel (2D grayscale)
             detected_objects, seg_masks = detection.detect.detect_from_ground_truth(seg_image, seg_colormap, classes=[], class_to_class_id=[])
-            # when the agent grabs something, their shoulders get closer to their hip, can use this to ignore these forward vectors as the first person camera does not change orientation during these animations
-            print(">>>", round(utils.dist_sq(agent_poses[frame][3], agent_poses[frame][0]), 3), round(utils.dist_sq(agent_poses[frame][4], agent_poses[frame][0]), 3))
+            # when the agent grabs something, some bones are closer/further than usual, can use this to ignore these forward vectors as the first person camera does not change orientation during these animations
+            h2h = round(utils.dist_sq(agent_poses[frame][3], agent_poses[frame][4]), 3) > .35  # threshold for grabbing
+            h2f = round(utils.dist_sq(agent_poses[frame][7], agent_poses[frame][6]), 3) < 2.15  # threshold for grabbing
+            print("grabbing?", h2h and h2f, round(utils.dist_sq(agent_poses[frame][3], agent_poses[frame][4]), 3), round(utils.dist_sq(agent_poses[frame][7], agent_poses[frame][6]), 3))
             if previous_upright_pose is None or int(frame) < 10:
                 previous_upright_pose = agent_poses[frame]
-            elif agent_poses[frame][1][1] - agent_poses[frame][0][1] < 0.44 or utils.dist_sq(agent_poses[frame][3], agent_poses[frame][0]) > 0.1 or utils.dist_sq(agent_poses[frame][4], agent_poses[frame][0]) > 0.1:
+            elif h2h and h2f:
                 agent_poses[frame] = previous_upright_pose
                 print("overriding upright pose!", frame)
             else:

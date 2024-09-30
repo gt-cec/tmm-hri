@@ -46,11 +46,14 @@ def get_agent_pose_per_frame(episode_dir:str, episode_name:str, agent:str) -> di
             hip_loc = extract_pose_loc_for_index(vals, 0, cast_to_numpy_array=True)
             left_shoulder_loc = extract_pose_loc_for_index(vals, 11, cast_to_numpy_array=True)
             right_shoulder_loc = extract_pose_loc_for_index(vals, 12, cast_to_numpy_array=True)
-            left_hand_loc = extract_pose_loc_for_index(vals, 24, cast_to_numpy_array=True)  # thumb proximal
-            right_hand_loc = extract_pose_loc_for_index(vals, 39, cast_to_numpy_array=True)
+            left_hand_loc = extract_pose_loc_for_index(vals, 17, cast_to_numpy_array=True)  # thumb proximal
+            right_hand_loc = extract_pose_loc_for_index(vals, 18, cast_to_numpy_array=True)
+            left_foot = extract_pose_loc_for_index(vals, 5, cast_to_numpy_array=True)  # thumb proximal
+            right_foot = extract_pose_loc_for_index(vals, 6, cast_to_numpy_array=True)
+            head = extract_pose_loc_for_index(vals, 10, cast_to_numpy_array=True)
             forward = np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)  # forward vector
             forward /= np.linalg.norm(forward)
-            poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, left_hand_loc, right_hand_loc, forward]
+            poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, left_hand_loc, right_hand_loc, left_foot, right_foot, head, forward]
     return poses
 
 # get frame IDs for an agent
