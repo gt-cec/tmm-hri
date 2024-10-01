@@ -21,12 +21,11 @@ class MentalModel:
     def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, class_to_class_id=[], depth_classes=[], gt_semantic=None, gt_semantic_colormap=None, seg_threshold=0.1, seg_save_name=None, depth_test=None):
         # verify types
         human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
-        
+
         # check if given GT semantics
         assert gt_semantic is None or gt_semantic is not None and gt_semantic_colormap is not None, "A ground truth image was provided, however a colormap was not! Please include a colormap."
-            
-        have_gt_detections = gt_semantic is not None and gt_semantic_colormap is not None  # flag for if we have the ground truth detections
 
+        have_gt_detections = gt_semantic is not None and gt_semantic_colormap is not None  # flag for if we have the ground truth detections
         detected_humans, depth_detected_humans, filtered_detected_humans = [], [], []  # initialize these variables as they are returned
 
         # if we have GT detections, parse them into the objects
@@ -47,20 +46,20 @@ class MentalModel:
             depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
             depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
             for i in range(len(depth_detected_humans)):  # set all outputs to human
-                depth_detected_humans[i]["class"] = "human"
+                depth_detected_humans[i]["class"] = "character"
                 depth_detected_humans[i]["class id"] = human_class_id
-            
-            # remove the humans from the detected humans that do not overlap with the depth 
+
+            # remove the humans from the detected humans that do not overlap with the depth
             filtered_detected_humans = detect.remove_objects_not_overlapping(detected_humans, depth_detected_humans, overlap_threshold=0.8, classes_to_filter=["human"])
             detected_objects += filtered_detected_humans
 
             # segment the objects
             boxes = [o["box"] for o in detected_objects]
             seg_masks = segment.segment(rgb, boxes)
-            
+
         # make sure the seg mask and detected object dimensions match
         assert len(detected_objects) == len(seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(seg_masks)}), one of these modules is misperforming."
-        
+
         detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, seg_masks, depth)
 
         self.dsg.update(detected_objects)

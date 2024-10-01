@@ -4,6 +4,10 @@
 !.gitignore
 !*.py
 
+# frames folder, not content
+!visualization_frames/
+visualization_frames/*
+
 # simulation
 !sim/*
 # simulation: ignore the Output folder
@@ -16,13 +20,10 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !dsg/
 !dsg/**
 
-# allow the segmentation code
+# allow the detection/segmentation/etc code
 !segmentation/
-# segmentation: ignore the model repo
-segmentation/detectron2
-detectron2*
-# segmentation: ignore .ipynb files
-segmentation/scene_segmentation.ipynb
+!detection/
+!pose_estimation/
 
 # useful scripts
 !frames_to_vid.sh

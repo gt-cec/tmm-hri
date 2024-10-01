@@ -4,10 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+import os
 
-sam2_checkpoint = "../sam2_hiera_large.pt"
-model_cfg = "sam2_hiera_l.yaml"
-sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="cuda")
+sam2_checkpoint = "../../Installations/sam2/checkpoints/sam2.1_hiera_small.pt"
+model_cfg = "../checkpoints/sam2.1_hiera_s.yaml"
+sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
 predictor = SAM2ImagePredictor(sam2_model)
 
 # given a bounding box, get the segmentation
@@ -26,4 +27,3 @@ def segment(rgb, boxes):
     )  # predict the segmentations using the bounding boxes
     masks = masks.reshape((masks.shape[0], rgb.shape[0], rgb.shape[1]))  # N x 1 x 512 x 512 to N x 512 x 512
     return masks
-    

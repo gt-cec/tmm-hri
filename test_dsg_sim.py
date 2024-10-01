@@ -11,8 +11,10 @@ import matplotlib.patches
 import preprocess_sim_detection
 import utils
 
+# MAC USERS: Oct 1 2024: MPS is not supported well by PyTorch so we need to enable the fallback, add the following export to your terminal (easiest in ./bashrc)
+# export PYTORCH_ENABLE_MPS_FALLBACK=1
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
-plt.rcParams['font.family'] = 'Roboto'
+plt.rcParams['font.family'] = 'Roboto'  # you probably need to install Roboto -- download the ttf from fonts.google.com. On Mac, place the Roboto folder in Library/Fonts and delete ~/.matplotlib/fontList-vXXX.json. On Linux, run sudo fc-cache -fv
 
 classes = {"human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass'}
 class_to_class_id = {o : i for i, o in enumerate(classes)}
@@ -82,7 +84,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
             classes_vert -= 0.025
             fig.text(0.01, classes_vert, "    ҉  " + c, ha='left', va='top', fontsize=8, color=class_id_to_color_map[i])
         text_frame = fig.text(0.99, 0.01, "Frame: N/A", ha="right", va="bottom", fontsize=10, color="black")
-    
+
     robot_mm = mental_model.MentalModel()  # initialize the robot's mental model
 
     # initialize the environment map, note that this is the "we know the starting layout" assumption
@@ -100,7 +102,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
         depth = cv2.imread(f"{frame_prefix}_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         depth_1channel = depth[:,:,0]
-        
+
         if use_gt_semantics and os.path.exists(preprocessed_file_path):
             with open(preprocessed_file_path, "rb") as f:
                 (detected_objects, _, human_detections) = pickle.load(f)
@@ -112,7 +114,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
             gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB) if use_gt_semantics else None
             detected_objects, human_detections = robot_mm.update_from_rgbd_and_pose(rgb, depth_1channel, pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
-        if visualize:           
+        if visualize:
             # add the robot agent
             x, y, z = [], [], []
             x.append(pose[0][0])  # right
@@ -133,7 +135,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
             for o in detected_objects:  # get the segmentation by color
                 color = class_id_to_color_map[class_to_class_id[o["class"]]]
                 seg[np.array(o["seg mask"]) > 0] = color
-            
+
             for o in robot_mm.dsg.objects:  # mental model objects
                 x.append(robot_mm.dsg.objects[o]["x"])
                 y.append(robot_mm.dsg.objects[o]["y"])
@@ -152,7 +154,7 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
                 patch.remove()
             for rgb_human in human_detections[0]:  # add rectangles for detected humans
                 ax_rgb.add_patch(matplotlib.patches.Rectangle((rgb_human["box"][0][1], rgb.shape[1] - rgb_human["box"][0][0]), rgb_human["box"][1][1] - rgb_human["box"][0][1], rgb_human["box"][0][0] - rgb_human["box"][1][0], linewidth=1, edgecolor='r', facecolor='none'))
-                ax_rgb.text(rgb_human["box"][0][0], rgb.shape[1] - rgb_human["box"][0][1], rgb_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))                
+                ax_rgb.text(rgb_human["box"][0][0], rgb.shape[1] - rgb_human["box"][0][1], rgb_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))
             # update the depth image
             plot_depth.set_data(depth[::-1,:,:] / 5)
             if not use_gt_semantics:  # ground truth semantics don't segment depth, so don't bother plotting it
@@ -160,16 +162,13 @@ def main(episode_dir=None, visualize=False, use_gt_semantics=False):
                     patch.remove()
                 for depth_human in human_detections[1]:  # add rectangles for detected humans
                     ax_depth.add_patch(matplotlib.patches.Rectangle((depth_human["box"][0][0], depth.shape[1] - depth_human["box"][0][1]), depth_human["box"][1][0] - depth_human["box"][0][0], depth_human["box"][0][1] - depth_human["box"][1][1], linewidth=1, edgecolor='r', facecolor='none'))
-                    ax_depth.text(depth_human["box"][0][0], depth.shape[1] - depth_human["box"][0][1], depth_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))                
+                    ax_depth.text(depth_human["box"][0][0], depth.shape[1] - depth_human["box"][0][1], depth_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))
             # update the seg image
             plot_seg.set_data(seg[::-1,:,:])
             text_frame.set_text(f"Frame: {frame_id}")
-            plt.savefig(f"frames/frame_{frame_id}.png", dpi=300)
+            plt.savefig(f"visualization_frames/frame_{frame_id}.png", dpi=300)
             plt.pause(.01)
-
     return
-
-
 
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
