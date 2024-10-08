@@ -2,26 +2,26 @@
 
 # fill in missing frames
 
-# # Directory containing the frames
-# FRAMES_DIR="frames"
-# # Change to the frames directory
-# cd "$FRAMES_DIR" || exit
-# # Get the list of existing frames sorted by their number
-# existing_frames=($(ls frame_*.png | sort -V))
-# # Iterate through the existing frames
-# for frame in "${existing_frames[@]}"; do
-#     # Extract the frame number from the filename
-#     frame_number=$(echo "$frame" | grep -oP '\d+')
-#     # Check for the next frame
-#     next_frame_number=$((frame_number + 1))
-#     next_frame="frame_${next_frame_number}.png"
-#     # If the next frame does not exist, copy the current frame to fill the gap
-#     if [[ ! -f "$next_frame" ]]; then
-#         echo "Missing $next_frame. Filling it with $frame."
-#         cp "$frame" "$next_frame"
-#     fi
-# done
-# echo "Frame filling complete."
+# Directory containing the frames
+FRAMES_DIR="frames"
+# Change to the frames directory
+cd "$FRAMES_DIR" || exit
+# Get the list of existing frames sorted by their number
+existing_frames=($(ls frame_*.png | sort -V))
+# Iterate through the existing frames
+for frame in "${existing_frames[@]}"; do
+    # Extract the frame number from the filename
+    frame_number=$(echo "$frame" | grep -oP '\d+')
+    # Check for the next frame
+    next_frame_number=$((frame_number + 1))
+    next_frame="frame_${next_frame_number}.png"
+    # If the next frame does not exist, copy the current frame to fill the gap
+    if [[ ! -f "$next_frame" ]]; then
+        echo "Missing $next_frame. Filling it with $frame."
+        cp "$frame" "$next_frame"
+    fi
+done
+echo "Frame filling complete."
 
 # make a movie
 

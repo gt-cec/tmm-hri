@@ -19,9 +19,11 @@ We chose to go with VirtualHome for ease of development, however may later move 
 ### Requirements
 
 - VirtualHome, place in your project workspace, following the instructions on their GitHub
-- PyTorch
-- HRNet
-- HYDRA-ROS
+- PyTorch (use the yolox)
+- AlphaPose
+- MotionBERT
+- OwLv2
+- SAM2
 
 ### Running the simulator (VirtualHome)
 
@@ -128,6 +130,18 @@ export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME
 export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 ```
+
+### Pose Detection
+
+Niko recommended MotionBERT for 3D detection, which requires AlphaPose for 2D detection. I installed AlphaPose via their install guide, which required installing a few other packages. The only one that caused issues was halpecocotools, which could not be installed from `pip install halpecocotools` like the command line suggested, as I kept getting a `ModuleNotFound: 'numpy'` error. I was able to get it installed by git cloning the HalpeCOCOAPI repo and running `python setup.py build develop`. I fixed a quick error about `python not found` by changing halpecocotools' setup.py to use `python3` on the relevant cython line. Then, halpecocotools and AlphaPose installed without issue.
+
+Due to cython using np.float and numpy having depreciated that, I added `np.float = float` to demo_inference.py so cython wouldn't break. Will probably need that in the real code too.
+
+I had a circular import error with roi_align importing a cuda thing, and commented out that line. Similar issue with nms_cpu from detector.nms, which I was unable to resolve. It looks like an issue with their YOLOv3 detector, so tried using yolox instead. Yolox works. We should integrate this with Owlv2 once it works.
+
+I integrated with OWLv2 and got AlphaPose working, also cleared out much of the unneeded code so now it's a fairly lightweight library.
+
+Next is to use the AlphaPose keypoints for MotionBERT for 3D pose detection.
 
 ### Challenges with VirtualHome
 
