@@ -24,8 +24,11 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !segmentation/
 !detection/
 !pose_estimation/
+!prediction/
+!map_boundaries.png
 
 # useful scripts
+!generate_pkl_processing.sh
 !frames_to_vid.sh
 !rearrange.json
 

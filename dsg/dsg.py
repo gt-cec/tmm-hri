@@ -1,6 +1,7 @@
 # dsg.py: constructs and maintains the scene graph
 
 from .node import Node  # for scene object
+from typing import Optional  # for arguments that can be None
 
 # constructs, maintains, and resolves a scene graph from inputs of sighted object classes and locations
 class DSG:
@@ -17,7 +18,7 @@ class DSG:
         if objects != []:
             self.initialize_scene(objects)
         return
-    
+
     # initializes the DSG from a list of objects
     def initialize_scene(self, objects:list, verbose=False) -> None:
         assert isinstance(objects, list), "Object list used to initialize the DSG must be a list of dictionaries, it is currently not a list"  # check that objects is a list
@@ -55,7 +56,7 @@ class DSG:
         # check the naive match: simple "same class, similar location" check
         for seen_object in seen_objects:
             found, known_object_id = self.__find_naive_match__(seen_object["class"], seen_object["x"], seen_object["y"], seen_object["z"])  # get a match if one exists
-            if found:  # found a math, so update the object and mark it as resolved
+            if found:  # found a match, so update the object and mark it as resolved
                 self.objects[known_object_id].update(x=seen_object["x"], y=seen_object["y"], z=seen_object["z"], last_seen=seen_object["last seen"] if "last seen" in seen_object else None)  # update the object
                 resolved_known_objects.append(known_object_id)  # add the object to the resolved objects
             else:  # could not find a match, so mark the seen object as unresolved
@@ -63,15 +64,17 @@ class DSG:
 
         # for the remaining unresolved, get the closest object of their class
         closest_objects_by_class = {}  # dictionary of class : known object ID : [[seen object ID, distance]], used to resolve objects and distances
+        closest_objects_recorded = []  # list of known object IDs that have been recorded so far, so finding closest matches don't result in duplicates'
         for unresolved_seen_object in unresolved_seen_objects:
             # get the closest known object of that class
-            closest_object_id, distance = self.__find_closest_match__(unresolved_seen_object["class"], unresolved_seen_object["x"], unresolved_seen_object["y"], unresolved_seen_object["z"], resolved_known_objects)
+            closest_object_id, distance = self.__find_closest_match__(unresolved_seen_object["class"], unresolved_seen_object["x"], unresolved_seen_object["y"], unresolved_seen_object["z"], ignore=resolved_known_objects + closest_objects_recorded)
             if closest_object_id is not None:  # if found a closest object, add it to the close object list
                 if unresolved_seen_object["class"] not in closest_objects_by_class:  # ensure the class is in the distance dict
                     closest_objects_by_class[unresolved_seen_object["class"]] = {}
                 if closest_object_id not in closest_objects_by_class[unresolved_seen_object["class"]]:  # ensure the known object ID is in the distance dict
                     closest_objects_by_class[unresolved_seen_object["class"]][closest_object_id] = []
                 closest_objects_by_class[unresolved_seen_object["class"]][closest_object_id].append([unresolved_seen_object, distance])  # add to the distance dict
+                closest_objects_recorded.append(closest_object_id)  # add to the record of closest objects
 
         # for each known object, pick the seen object that claimed it that is closest of the known object
         for object_class in closest_objects_by_class:  # resolve each known object
@@ -85,7 +88,7 @@ class DSG:
 
         # raise an error if there are still unresolved objects
         if len(unresolved_seen_objects) > 0:
-            raise ValueError("DSG solver could not resolve all seen objects: " + str(unresolved_seen_objects))
+            raise ValueError("DSG solver could not resolve all seen objects: " + str([x["class"] + " " + str(round(x["x"], 2)) + " " + str(round(x["y"], 2)) + " " + str(round(x["z"], 2)) for x in unresolved_seen_objects]) + " // all objects: " + str(resolved_known_objects) + " // seen objects: " + str([x["class"] + " " + str(round(x["x"], 2)) + " " + str(round(x["y"], 2)) + " " + str(round(x["z"], 2)) for x in seen_objects])) # + str([x["class"] + " " + str(round(x["x"], 2)) + " " + str(round(x["y"], 2)) + " " + str(round(x["z"], 2)) for x in resolved_known_objects]))
 
         return
 
@@ -94,12 +97,12 @@ class DSG:
         return len(self.objects)
 
     # update a known object's properties, used when the object ID is known
-    def __update_known_object__(self, object_id, object_class=None, x=None, y=None, z=None, last_seen=None):
+    def __update_known_object__(self, object_id:int, object_class:Optional[str]=None, x:Optional[float]=None, y:Optional[float]=None, z:Optional[float]=None, last_seen:Optional[float]=None):
         if object_id not in self.objects:  # check if the node exists
             raise KeyError("Given object ID (" + str(object_id) + ") is not in the node table.")
         self.objects[object_id].update(object_class, x, y, z, last_seen)  # update the node
         return
-    
+
     # check if a list of objects contains a given object, used so numpy arrays aren't compared
     def __check_if_object_in_list__(self, o, l):
         for i in range(len(l)):
@@ -108,7 +111,7 @@ class DSG:
         return False, -1
 
     # finds an object of the same class and similar location
-    def __find_naive_match__(self, object_class, x, y, z) -> tuple[bool, str]:
+    def __find_naive_match__(self, object_class:str, x:float, y:float, z:float) -> tuple[bool, str]:
         # check if the object class is known
         if object_class not in self.__objects_by_class__:
             raise KeyError("The given object class '" + str(object_class) + "' is not in the known objects list.")
@@ -121,7 +124,7 @@ class DSG:
         return False, ""  # no naive match
 
     # finds the closest object of the class
-    def __find_closest_match__(self, object_class, x, y, z, ignore={}) -> tuple[str | None, float]:
+    def __find_closest_match__(self, object_class:str, x:float, y:float, z:float, ignore:list=[]) -> tuple[str | None, float]:
         # check if the object class is known
         if object_class not in self.__objects_by_class__:
             raise KeyError("The given object class '" + str(object_class) + "' is not in the known objects list.")
@@ -139,16 +142,16 @@ class DSG:
         return closest_object_id, closest_distance
 
     # check arguments of a function that can take either an object dict or individual properties
-    def __validate_object_properties__(self, object_dict=None, object_class=None, x=None, y=None, z=None) -> tuple[str, int | float, int | float, int | float]:
+    def __validate_object_properties__(self, object_dict:Optional[dict]=None, object_class:Optional[str]=None, x:Optional[float]=None, y:Optional[float]=None, z:Optional[float]=None) -> tuple[str | None, float | None, float | None, float | None]:
         # if the object dictionary was not passed in, ensure all the object properties were passed in
         if object_dict is None:
             if object_class is None or not isinstance(x, str):
                 raise ValueError("Validating object properties: an object dictionary was not passed in and the object_class param is not a string, fix by either passing a dictionary to object_dict or a string to object_class.")
-            if x is None or not isinstance(x, (int, float)):
+            if x is None or not isinstance(x, float):
                 raise ValueError("Validating object properties: an object dictionary was not passed in and the x param is not a number, fix by either passing a dictionary to object_dict or a number to x.")
-            if y is None or not isinstance(x, (int, float)):
+            if y is None or not isinstance(x, float):
                 raise ValueError("Validating object properties: an object dictionary was not passed in and the y param is not a number, fix by either passing a dictionary to object_dict or a number to y.")
-            if z is None or not isinstance(x, (int, float)):
+            if z is None or not isinstance(x, float):
                 raise ValueError("Validating object properties: an object dictionary was not passed in and the z param is not a number, fix by either passing a dictionary to object_dict or a number to z.")
         # if the object dictionary was passed in, ensure no object properties were passed in
         else:
@@ -186,7 +189,7 @@ class DSG:
                 raise ValueError("Validating seen objects: object is not a dict: " + str(seen_object))
             self.__validate_object_properties__(object_dict=seen_object)  # validate the input, will error if the dictionary is mal-formed
         return
-    
+
     # resets the DSG
     def __reset__(self) -> None:
         self.objects.clear()

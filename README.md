@@ -68,48 +68,6 @@ Which can be run with:
 
 `rosbag play uhumans2_nofrontlidar.bag --topics /tesse/depth_cam/mono/image_raw /tesse/left_cam/rgb/image_raw /tesse/seg_cam/camera_info /tesse/seg_cam/rgb/image_raw /tf`
 
-### Scene Graph
-
-We use Hydra to construct a scene graph from the robot's perspective. This requires us to give the robot's depth camera (parsed from the simulator output), the robot's pose/orientation (used the hip as the x/y location and the normal from the hip+Lshoulder+Rshoulder plane as the forward direction), and a semantic map (used HRNet).
-
-We downloaded an HRNET model and are using the ADE dataset because the Hydra paper uses that model too. It took quite a bit of work to get HRNet working on custom camera inputs.
-
-I found that the launch file has an interesting relationship with the ground truth, to a point where I wonder if it is reliant on the ground truth data, as HYDRA silently failed to generate a scene graph when the `use_gt_semantics` switch was set to false. It looks like Hydra is in the middle of a quality-of-life upgrade (and is still reliant on some code locked behind MIT's internal GitHub), so we are going to make our own dynamic scene graph generator in the meantime.
-
-### (old) Custom DSG: Segmentation (Detectron2)
-
-In our effort to create our own DSG, we are using Detectron2 for the semantic segmentation. I was unable to get detectron working on my local computer or the GT compute cluster, for some arcane install errors, so I had to use a conda environment.
-
-Installing Detectron2 was challenging as it appears reliant on an older ligcc version and does not support python versions greater than 3.9.
-
-I was unable to get Detectron installed via pip or their prebuilts, so I used a conda environment with pytorch 1.10.0 and torchvision 0.11. I then installed the Detectron2 conda package.
-
-Running the python example code (`test.py`) failed from an "undefined symbol: _ZNK2at6Tensor7reshapeEN3c108ArrayRefIlEE" error, which the maintainers write is either because detectron2 requires an older libgcc version and they don't seem to have any intentions to rebuild detectron2 for newer runtimes versions, or there is a pytorch/torchvision mismatch.
-
-I uninstalled pytorch, torchvision, and detectron2 via conda, and reinstalled detectron2 (which loaded what I think were its own listed target pytorch and torchvision packages). While importing detectron2 now works, I now had an error with an incompatibility between pytorch (2.3.1) and torchvision (0.15, which supports pytorch 2.0.1). I downgraded conda's pytorch (`conda install pytorch==2.0.1`). This also downgraded detectron2 to a previous version, which in turn downgraded torchvision to 0.8.2, which again led to the same problem.
-
-I then tried updating the torchvision version, but that led to a different undefined symbol (pytorch jit). In another attempt, I tried to install pytorch version 1.10.1 and torchvision 0.11, and then the detectron prebuilt, which seemed to work. I then tried again on Python 12, and got it working.
-
-While the process was messy, I think these are the steps:
-1. Create conda environment with pytorch 1.10 and torchvision 0.11
-
-`conda create -n "dt"`
-`conda activate dt`
-`conda install python==3.12.2`
-`conda install conda-forge::pytorch==1.10.1`
-`conda install conda-forge::torchvision==0.11.1`
-
-2. On the Detectron2 conda download page, go to Files and download the .conda with the target architecture, python version, and CUDA/CPU. I think the issue was the default was incorrect here.
-3. conda install the .conda file
-
-`conda install detectron2*.conda`
-
-4. Should be good to go, if you run into import errors just install the requisite pip packages
-
-`pip3 install python-opencv matplotlib ...`
-
-While I was able to hesitantly get Detectron2 to work, it wasn't great (fixed classes) and I could not get the GPU version to work (at the time of writing, only available for CUDA 12.1 while my GPU had CUDA 12.2). Also, there are more modern options today.
-
 ### Custom DSG: Segmentation (OWL2 + SAM2)
 
 I then tried a different pipeline of using OWL2 for object detection, and SAM2 for object segmentation. OWL2 allows for open vocabulary object detection which is useful for a household environment and outputs bounding boxes for the objects. SAM2 does not take in a class, only bounding boxes or known points/paths, returning the most likely intended object. From our test cases this pipeline of open vocab detection -> bounding boxes -> segmentation works very well, and to greater fidelity than SAM2. Additionally, the two models are maintained and recent.
@@ -146,3 +104,17 @@ Next is to use the AlphaPose keypoints for MotionBERT for 3D pose detection.
 ### Challenges with VirtualHome
 
 For some reason, installing virtualhome ran into various problems with setuptools. I was instead able to modify the base package and import it as a submodule. I submitted pull requests to the main branch to support these changes.
+
+### Running the dynamic scene graph
+
+(optional) to pre-generate the agent visuals at each frame, run:
+
+`./generate_pkl_processing.sh`
+
+This will delete the existing pkl files for an agent (edit the .sh file to change the agent files to delete) and generate new ones for each frame.
+
+To run the dynamic scene graph, run:
+
+`python3.12 test_dsg_sim.py`
+
+This will open each pkl file for an agent and run the DSG on it, outputting the result plots to `visualization_frames/`.

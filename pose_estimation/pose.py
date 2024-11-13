@@ -11,10 +11,19 @@ from torch.utils.data import DataLoader
 from .motionbert.lib.utils.tools import *
 from .motionbert.lib.utils.learning import *
 from .motionbert.lib.utils.utils_data import flip_data
-# from .motionbert.lib.data.dataset_wild import WildDetDataset
-# from .motionbert.lib.utils.vismo import render_and_save
 
 import sys, tqdm, cv2, os, json, yaml, numpy, torch
+
+# get the forward direction of a character
+# pose: list of keypoints
+def get_direction_from_pose(pose:list, use_gt_pose=False) -> list:
+    # get direction from ground truth pose
+    if use_gt_pose:
+        return pose[-1]  # use the coordinate system (east, north, vertical)
+    # get direction from observed pose
+    else:
+        print("POSE DIRECTION FROM NON-GT IS NOT IMPLEMENTED")
+        return pose[-1]  # use the coordinate system (east, north, vertical)
 
 class PoseDetector(object):
     def __init__(self, config_path:str="", checkpoint_path:str="", device:str="cpu"):

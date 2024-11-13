@@ -2,14 +2,16 @@
 
 import numpy as np
 import ast, math, os
+import cv2
 
 # get the x/y/z coordinates of an index from the pose array
 def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
     r = [float(pose_list[3 * index + 0]), float(pose_list[3 * index + 1]), float(pose_list[3 * index + 2])]
-    return np.array(r) if cast_to_numpy_array else r
+    return np.array(r)[[0,2,1]] if cast_to_numpy_array else [r[0], r[2], r[1]]  # convert from coordinate frame (east, vertical, north) to (east, north, vertical)
 
-# project visually observed objects from the agent's frame, sim fov = 1.0472rad = 60deg
-def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, seg_masks, depth, fov=1.0472):
+# project visually observed objects from the agent's frame, sim fov = 1.0472rad = 120deg
+def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, seg_masks, depth, fov):
+    fov = np.deg2rad(fov)
     # get the location of the object in 3D space
     for i in range(seg_masks.shape[0]):  # for each observed object
         mask = depth[seg_masks[i] > 0]  # the depth field corresponding to the object mask
@@ -22,11 +24,11 @@ def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_o
         x_pos_local = math.sin(horz_angle) * dist
         z_pos_local = math.sin(vert_angle) * dist
         direction = agent_pose[-1]  # forward vector
-        pose_horz_angle = math.atan2(direction[2], direction[0])  # for the pose, z is horz plan up (y), x is horz plan right (x)
-        pose_vert_angle = math.asin(direction[1])  # for the pose, y is the vert plan up, so angle is y / 1
+        pose_horz_angle = math.atan2(direction[1], direction[0])  # for the pose, z is horz plan up (y), x is horz plan right (x)
+        pose_vert_angle = math.asin(direction[2])  # for the pose, y is the vert plan up, so angle is y / 1
         x_pos_global = agent_pose[0][0] + math.cos(pose_horz_angle - horz_angle) * dist
-        y_pos_global = agent_pose[0][2] + math.sin(pose_horz_angle - horz_angle) * dist
-        z_pos_global = agent_pose[0][1] + math.sin(pose_vert_angle - vert_angle) * dist  # in the future, should use head instead for eye vert
+        y_pos_global = agent_pose[0][1] + math.sin(pose_horz_angle - horz_angle) * dist
+        z_pos_global = agent_pose[0][2] + math.sin(pose_vert_angle - vert_angle) * dist  # in the future, should use head instead for eye vert
         detected_objects[i]["x"] = float(x_pos_global)
         detected_objects[i]["y"] = float(y_pos_global)
         detected_objects[i]["z"] = float(z_pos_global)
@@ -51,7 +53,7 @@ def get_agent_pose_per_frame(episode_dir:str, episode_name:str, agent:str) -> di
             left_foot = extract_pose_loc_for_index(vals, 5, cast_to_numpy_array=True)  # thumb proximal
             right_foot = extract_pose_loc_for_index(vals, 6, cast_to_numpy_array=True)
             head = extract_pose_loc_for_index(vals, 10, cast_to_numpy_array=True)
-            forward = np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)  # forward vector
+            forward = -1 * np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)  # forward vector
             forward /= np.linalg.norm(forward)
             poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, left_hand_loc, right_hand_loc, left_foot, right_foot, head, forward]
     return poses
@@ -64,7 +66,17 @@ def get_frames_filenames(episode_dir:str, episode_name:str, agent:str) -> dict:
 def get_ground_truth_semantic_colormap(episode_dir):
     with open(f"{episode_dir}/episode_info.txt") as f:
         return ast.literal_eval(f.readlines()[3])
-    
+
 # euclidean distance
 def dist_sq(a, b):
-    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + ((a[2] - b[2]) ** 2 if len(a) > 2 else 0)
+
+# read a map image and get boundaries
+def get_map_boundaries(map_image_path:str) -> dict:
+    map_image = cv2.imread(map_image_path, cv2.IMREAD_GRAYSCALE)  # image must be black/white, with white being the free space
+    walls = map_image < 127
+    map_image[map_image >= 127] = 0
+    map_image[walls] = 1
+    map_image = np.transpose(map_image)
+    map_image = np.flip(map_image, axis=1)
+    return map_image

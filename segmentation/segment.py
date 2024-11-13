@@ -2,14 +2,18 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from sam2.build_sam import build_sam2
-from sam2.sam2_image_predictor import SAM2ImagePredictor
 import os
 
-sam2_checkpoint = "../../Installations/sam2/checkpoints/sam2.1_hiera_small.pt"
-model_cfg = "../checkpoints/sam2.1_hiera_s.yaml"
-sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
-predictor = SAM2ImagePredictor(sam2_model)
+try:
+    from sam2.build_sam import build_sam2
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+
+    sam2_checkpoint = "../../Installations/sam2/checkpoints/sam2.1_hiera_small.pt"
+    model_cfg = "../checkpoints/sam2.1_hiera_s.yaml"
+    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
+    predictor = SAM2ImagePredictor(sam2_model)
+except ModuleNotFoundError as e:
+    print("WARNING: SAM2 is not installed, do not expect to use it. Message:", e)
 
 # given a bounding box, get the segmentation
 # inputs: RGB image, detected bounding boxes

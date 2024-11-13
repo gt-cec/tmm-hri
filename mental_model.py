@@ -9,7 +9,7 @@ import math, numpy, utils
 class MentalModel:
     def __init__(self):
         self.dsg = dsg.DSG()
-        self.fov = 2.96706 # 170deg #1.0472  # 60deg in radians
+        self.fov = 40
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:
@@ -60,7 +60,7 @@ class MentalModel:
         # make sure the seg mask and detected object dimensions match
         assert len(detected_objects) == len(seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(seg_masks)}), one of these modules is misperforming."
 
-        detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, seg_masks, depth)
+        detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, seg_masks, depth, self.fov)
 
         self.dsg.update(detected_objects)
 
@@ -70,3 +70,17 @@ class MentalModel:
     def update_from_detected_objects(self, detected_objects):
         self.dsg.update(detected_objects)
         return
+
+    # get the objects that should be visible from a given location and pose
+    def get_objects_in_visible_region(self, location, direction):
+        fov = math.radians(self.fov) / 2  # convert to radians, divide by two because angles will be calculated from the center of the field of view
+        visible_objects = []
+        for object_id in self.dsg.objects:
+            # get the object location relative to the agent location
+            object_location_wrt_agent_location = numpy.array([self.dsg.objects[object_id]["x"] - location[0], self.dsg.objects[object_id]["y"] - location[1], self.dsg.objects[object_id]["z"] - location[2]])
+            # check if object is in the agent's field of view
+            # NOTE: will need to filter by walls/visibility
+            angle = math.acos(numpy.dot(object_location_wrt_agent_location, direction) / (numpy.linalg.norm(object_location_wrt_agent_location) * numpy.linalg.norm(direction)))
+            if angle < fov:
+                visible_objects.append(self.dsg.objects[object_id].as_dict())
+        return visible_objects
