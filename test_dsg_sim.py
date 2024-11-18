@@ -14,6 +14,9 @@ import utils
 import visualization.plot_full_tmm
 import visualization.plot_pred_human
 import prediction.predict
+import sys
+
+np.set_printoptions(threshold=sys.maxsize)
 
 # MAC USERS: Oct 1 2024: MPS is not supported well by PyTorch so we need to enable the fallback, add the following export to your terminal (easiest in ./bashrc)
 # export PYTORCH_ENABLE_MPS_FALLBACK=1
@@ -24,6 +27,8 @@ matplotlib.use('QtAgg')
 classes = sorted(["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass'])
 class_to_class_id = {o : i for i, o in enumerate(classes)}
 class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
+
+map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
 
 def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None):
     # validate episode_dir
@@ -52,6 +57,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
 
     robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
     gt_human_mm.initialize(objects=initial_objects, verbose=False)
+    last_saw_human = (None, [])  # (frame ID, location)
     pred_human_mm.initialize(objects=initial_objects, verbose=False)
 
     # visualization
@@ -94,22 +100,46 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
             gt_human_mm.update_from_detected_objects(human_detected_objects)
 
         objects_visible_to_human = []  # objects that the robot thinks the human can see
+        human_trajectory_debug = None
         # update the human pose
         if len(robot_human_detections[0]) > 0:  # if a human was seen
             human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose'
             human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]  # pose[0] is the base joint, using [east, north, vertical]
             human_direction = pose.get_direction_from_pose(human_pose, use_gt_pose=use_gt_pose)  # get the direction that the human is facing
-            objects_visible_to_human = robot_mm.get_objects_in_visible_region(human_location, human_direction)  # get the objects that should be in the human's view'
-            pred_human_mm.update_from_detected_objects(objects_visible_to_human)  # update the predicted human's mental model
             robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
             robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
             robot_human_detections[0][0]["visible objects"] = objects_visible_to_human  # update the human's visible objects in the detections
+
+            # if human has not been seen since before the last frame, predict where the human went since the last view
+            if last_saw_human[0] is not None:
+                last = prediction.predict.project_continuous_location_to_map_location(last_saw_human[1][:2], map_boundaries)  # get the last seen location of the human in pixel coordinates
+                curr = prediction.predict.project_continuous_location_to_map_location(human_location[:2], map_boundaries)  # get the current location of the human in pixel coordinates
+                path, all_neighbors = prediction.predict.predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
+                object_locations = []
+                object_index_to_key = {}
+                for i, o in enumerate(robot_mm.dsg.objects):  # get the location of robot's known objects in pixel coordinates
+                    pos = prediction.predict.project_continuous_location_to_map_location([robot_mm.dsg.objects[o]["x"], robot_mm.dsg.objects[o]["y"]], map_boundaries)
+                    object_locations.append([pos[0], pos[1], i])
+                    object_index_to_key[i] = o  # store the index of the object for referencing
+                object_locations = np.array(object_locations)  # convert to numpy array for easier indexing
+                visibility, visible_points = prediction.predict.get_objects_visible_from_path(robot_mm.dsg, path, map_boundaries, pred_human_mm.fov)
+                visible_objects = object_locations[visibility]
+                invisible_objects = object_locations[~np.array(visibility)]
+                human_trajectory_debug = prediction.predict.debug_path(robot_mm.dsg, map_boundaries, path, all_neighbors, visible_objects, visible_points, invisible_objects, pred_human_mm.fov, tag=str(frame_id))
+                # organize the visible objects
+                objects_visible_to_human = []
+                for i, object_is_visible in enumerate(visibility):
+                    if object_is_visible:
+                        objects_visible_to_human.append(robot_mm.dsg.objects[object_index_to_key[i]].as_dict())
+                pred_human_mm.update_from_detected_objects(objects_visible_to_human)  # update the predicted human's mental model
+
+            last_saw_human = (frame_id, human_location)
 
         if save_plot or show_plot is not None:
             if show_plot == visualization.plot_pred_human.PlotPredHuman:
                 bgr = cv2.imread(f"{human_frame_prefix}_normal.png")
                 human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
-                vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
+                vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, detected_objects, human_detections, rgb, depth, frame_id)
             if save_plot:
@@ -118,9 +148,6 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
     return
 
 if __name__ == "__main__":
-    map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
-    path, all_neighbors = prediction.predict.predict_path([75, 40], [25, 75], map_boundaries)
-    prediction.predict.debug_path(map_boundaries, path, all_neighbors)
     print("Testing the dynamic scene graph on simulator data.")
     episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
     episode_dir = f"episodes/{episode_name}"

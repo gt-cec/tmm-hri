@@ -26,6 +26,7 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !pose_estimation/
 !prediction/
 !map_boundaries.png
+!visualization/
 
 # useful scripts
 !generate_pkl_processing.sh
