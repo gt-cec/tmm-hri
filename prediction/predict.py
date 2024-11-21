@@ -3,12 +3,29 @@
 import math, numpy, cv2, heapq
 from utils import dist_sq
 
-def project_continuous_location_to_map_location(continuous_location, map_boundaries) -> numpy.ndarray:
-    # project the continuous location to the map location
-    center = [-1, -4]
-    dim = 23
-    map_location = [int((continuous_location[0] - center[0] + dim/2) * map_boundaries.shape[0] / dim), int((continuous_location[1] - center[1] + dim/2) * map_boundaries.shape[1] / dim)]
-    return numpy.array(map_location)
+# given a start and goal point, return the objects seen
+def get_objects_visible_from_last_seen(start_location, end_location, map_boundaries, robot_dsg, human_fov, debug_tag=""):
+    last = __project_continuous_location_to_map_location__(start_location, map_boundaries)  # get the last seen location of the human in pixel coordinates
+    curr = __project_continuous_location_to_map_location__(end_location, map_boundaries)  # get the current location of the human in pixel coordinates
+    path, all_neighbors = predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
+    object_locations = []
+    object_index_to_key = {}
+    for i, o in enumerate(robot_dsg.objects):  # get the location of robot's known objects in pixel coordinates
+        pos = __project_continuous_location_to_map_location__([robot_dsg.objects[o]["x"], robot_dsg.objects[o]["y"]], map_boundaries)
+        object_locations.append([pos[0], pos[1], i])
+        object_index_to_key[i] = o  # store the index of the object for referencing
+    object_locations = numpy.array(object_locations)  # convert to numpy array for easier indexing
+    visibility, visible_points = __get_objects_visible_from_path__(robot_dsg, path, map_boundaries, human_fov)  # visibility is [False, True, True, False, ...] for each object, visible_points is for debugging
+    visible_objects = object_locations[visibility]  # only include the visible objects
+    invisible_objects = object_locations[~numpy.array(visibility)]
+    debug_path(robot_dsg, map_boundaries, path, all_neighbors, visible_objects, visible_points, invisible_objects, human_fov, tag=str(debug_tag))  # save a path png for debugging
+    # organize the visible objects
+    objects_visible_to_human = []
+    for i, object_is_visible in enumerate(visibility):
+        if object_is_visible:
+            objects_visible_to_human.append(robot_dsg.objects[object_index_to_key[i]].as_dict()) 
+    return objects_visible_to_human
+
 
 def predict_path(previous_location, current_location, map_boundaries):
     # A* planner to predict the human agent's path
@@ -29,8 +46,9 @@ def predict_path(previous_location, current_location, map_boundaries):
         for next in __neighbors__(current, map_boundaries):
             all_neighbors.append(next)
             if str(next) not in came_from:
-                heapq.heappush(frontier, (dist_sq(next, current_location) + 20 * came_from[str(current)][1], next))
-                came_from[str(next)] = (current, came_from[str(current)][1] + 1)
+                dist = dist_sq(next, current_location)
+                heapq.heappush(frontier, (dist + came_from[str(current)][1], next))
+                came_from[str(next)] = (current, dist + came_from[str(current)][1])
     path = []
     current = current_location
     while current != previous_location and str(current) in came_from:
@@ -39,6 +57,13 @@ def predict_path(previous_location, current_location, map_boundaries):
     path.append(previous_location)
     path.reverse()
     return path, all_neighbors
+
+def __project_continuous_location_to_map_location__(continuous_location, map_boundaries) -> numpy.ndarray:
+    # project the continuous location to the map location
+    center = [-1, -4]
+    dim = 23
+    map_location = [int((continuous_location[0] - center[0] + dim/2) * map_boundaries.shape[0] / dim), int((continuous_location[1] - center[1] + dim/2) * map_boundaries.shape[1] / dim)]
+    return numpy.array(map_location)
 
 # helper function to get neighbors of a location
 def __neighbors__(location, map_boundaries):
@@ -53,7 +78,7 @@ def __neighbors__(location, map_boundaries):
     return neighbors
 
 # get the objects visible from a path
-def get_objects_visible_from_path(dsg, path, map_image, fov):
+def __get_objects_visible_from_path__(dsg, path, map_image, fov):
     # make sure path is a numpy array
     if not isinstance(path, numpy.ndarray):
         path = numpy.array(path)
@@ -64,11 +89,11 @@ def get_objects_visible_from_path(dsg, path, map_image, fov):
     for i in range(1, len(path)):
         location = path[i]
         direction = path[i] - path[i-1] / numpy.linalg.norm(path[i] - path[i-1])
-        visibility, debug_visible_points = get_objects_visible_from_point(dsg, location, direction, map_image, fov, object_locations, visibility, debug_visible_points)
+        visibility, debug_visible_points = __get_objects_visible_from_point__(dsg, location, direction, map_image, fov, object_locations, visibility, debug_visible_points)
     return visibility, numpy.array(debug_visible_points)
 
 # get the objects visible from a location and direction
-def get_objects_visible_from_point(dsg, location, direction, map_image, fov, object_locations=[], visibility=[], debug_visible_points=[]):
+def __get_objects_visible_from_point__(dsg, location, direction, map_image, fov, object_locations=[], visibility=[], debug_visible_points=[]):
     # if object locations are not provided, get them from the dsg
     if len(object_locations) == 0:
         object_locations = numpy.array([[dsg.objects[obj]["x"], dsg.objects[obj]["y"], dsg.objects[obj]["z"]] for obj in dsg.objects])
@@ -89,9 +114,9 @@ def get_objects_visible_from_point(dsg, location, direction, map_image, fov, obj
 def __raycast__(map_boundaries, start, end):
     # if floats are passed in, remap them to the boundaries
     if not isinstance(start[0], numpy.int64) or not isinstance(start[1], numpy.int64):
-        start = project_continuous_location_to_map_location(start, map_boundaries)
+        start = __project_continuous_location_to_map_location__(start, map_boundaries)
     if not isinstance(end[0], numpy.int64) or not isinstance(end[1], numpy.int64):
-        end = project_continuous_location_to_map_location(end, map_boundaries)
+        end = __project_continuous_location_to_map_location__(end, map_boundaries)
     visible_points = []
     # check if the object is visible from the start location
     diff = numpy.array([end[0] - start[0], end[1] - start[1]])
@@ -124,7 +149,7 @@ def __object_is_visible_from_path_segment__(start, end, obj, map_boundaries, fov
 def __object_is_visible_from_point__(location, direction, obj_location, map_boundaries, fov):
     # if floats are passed in for the object location, remap them to the boundaries
     if not isinstance(obj_location[0], int) or not isinstance(obj_location[1], int):
-        obj_location = project_continuous_location_to_map_location(obj_location, map_boundaries)
+        obj_location = __project_continuous_location_to_map_location__(obj_location, map_boundaries)
     # check if the object is visible from the path segment
     direction = direction / numpy.linalg.norm(direction)  # normalize the direction
     object_location_wrt_agent_location = numpy.array([obj_location[0] - location[0], obj_location[1] - location[1]])
@@ -158,9 +183,5 @@ def debug_path(dsg, map_image, path, all_neighbors, visible_objects, visible_poi
     map_image[invisible_objects[:,0], invisible_objects[:,1]] = (100, 100, 0, 255)  # invisible objects
     scale_ratio = 10
     map_image = cv2.resize(map_image, None, fx=scale_ratio, fy=scale_ratio, interpolation=cv2.INTER_NEAREST)
-    cv2.imwrite('map_path' + ('_' + tag if tag != "" else '') + '.png', map_image)
+    cv2.imwrite('prediction_maps/map_path' + ('_' + tag if tag != "" else '') + '.png', map_image)
     return map_image
-
-
-# Output: [[0, 0, 0], [1, 1, 0], [2, 2, 0]]
-# The predict function returns the path the human agent is likely to take between two sightings. The function uses an A* planner to find the shortest path between the two locations, considering the map boundaries and a padding parameter to avoid obstacles. The test case demonstrates the predicted path between the previous and current locations.

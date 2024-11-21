@@ -1,10 +1,10 @@
 ## Team Mental Models for Human-Robot Interaction
 
-In this project we aim to enable a robot to estimate the belief state of other (human) agents in its surroundings. We limit our work to a household domain, where a human completes general taskwork and the robot constructs a model to match what the user believes.
+In this project we aim to enable a robot to estimate the belief state of other (human) agents in its surroundings. We limit our work to a household domain.
 
 ### Setup
 
-We are exploring two simulation platforms for this task, Habitat-sim and VirtualHome. The simulators have the following tradeoffs:
+We considered two simulation platforms for this task, Habitat-sim and VirtualHome. The simulators have the following tradeoffs:
 
 Photo realism: Habitat
 Physics realism: Habitat
@@ -14,7 +14,7 @@ Execution of high-level plans: Virtualhome (out-of-the-box)
 Simulation speed: Habitat
 Ease of development: Virtualhome
 
-We chose to go with VirtualHome for ease of development, however may later move to Habitat for a future project.
+We chose to go with VirtualHome for ease of development, however may later move to Habitat for a future project. The primary issue with Habitat was that, at the time, Habitat barely supported human agents with rearrangement capabilities, whereas that was an out-of-the-box feature for VirtualHome.
 
 ### Requirements
 

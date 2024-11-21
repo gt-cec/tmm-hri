@@ -3,6 +3,7 @@
 !README.md
 !.gitignore
 !*.py
+!requirements.txt
 
 # frames folder, not content
 !visualization_frames/

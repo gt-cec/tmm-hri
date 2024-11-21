@@ -2,7 +2,7 @@
 
 from dsg import dsg
 # from segmentation import scene_segmentation
-from detection import detect
+# from detection import detect
 from segmentation import segment
 import math, numpy, utils
 

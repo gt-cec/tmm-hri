@@ -150,6 +150,16 @@ class PlotFullTMM():
             self.ax_rgb.add_patch(matplotlib.patches.Rectangle((rgb_human["box"][0][1], rgb_image.shape[1] - rgb_human["box"][0][0]), rgb_human["box"][1][1] - rgb_human["box"][0][1], rgb_human["box"][0][0] - rgb_human["box"][1][0], linewidth=1, edgecolor='r', facecolor='none'))
             self.ax_rgb.text(rgb_human["box"][0][0], rgb_image.shape[1] - rgb_human["box"][0][1], rgb_human["confidence"], fontfamily="sans-serif", fontsize=4, color="white", bbox=dict(facecolor="red", linewidth=1, alpha=1.0, edgecolor="red", pad=0))
 
+        # remove previous patches (circles around visible objects)
+        for patch in self.ax_scatter_human.get_children():
+            if patch.__class__ == matplotlib.patches.Circle:
+                patch.remove()
+
+        # show circles around the visible objects
+        for object in objects_visible_to_human:
+            circle = matplotlib.patches.Circle((object["x"], object["y"]), .5, edgecolor='blue', facecolor='none')
+            self.ax_scatter_human.add_patch(circle)
+
         # update the depth image
         self.plot_depth.set_data(depth_image[::-1,:,:] / 5)
         if not self.use_gt_semantics:  # ground truth semantics don't segment depth, so don't bother plotting it

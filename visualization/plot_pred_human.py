@@ -116,9 +116,9 @@ class PlotPredHuman():
         mm_points_x_human_true, mm_points_y_human_true, mm_points_z_human_true = [], [], []
 
         # add the robot agent
-        mm_points_x_robot.append(agent_pose[0][0])  # east
-        mm_points_y_robot.append(agent_pose[0][1])  # north
-        mm_points_z_robot.append(agent_pose[0][2])  # vertical
+        mm_points_x_robot.append(0)#agent_pose[0][0])  # east
+        mm_points_y_robot.append(0)#agent_pose[0][1])  # north
+        mm_points_z_robot.append(0)#agent_pose[0][2])  # vertical
         plot_colors_robot, plot_colors_human, plot_colors_human_true = [(0, 0, 0, 1)], [], []  # plot colors of mm points, initialize the robot's with the agent pose
 
         # fade out the previous motion colors
@@ -130,20 +130,20 @@ class PlotPredHuman():
                     continue
                 line.set_alpha(alpha - 0.1)  # decrease alpha
 
-        for o in robot_mm.dsg.objects:  # robot mental model objects
-            mm_points_x_robot.append(robot_mm.dsg.objects[o]["x"])
-            mm_points_y_robot.append(robot_mm.dsg.objects[o]["y"])
-            plot_colors_robot.append(self.class_id_to_color_map[self.class_to_class_id[robot_mm.dsg.objects[o]["class"]]])
+        # for o in robot_mm.dsg.objects:  # robot mental model objects
+        #     mm_points_x_robot.append(robot_mm.dsg.objects[o]["x"])
+        #     mm_points_y_robot.append(robot_mm.dsg.objects[o]["y"])
+        #     plot_colors_robot.append(self.class_id_to_color_map[self.class_to_class_id[robot_mm.dsg.objects[o]["class"]]])
 
-        for o in pred_human_mm.dsg.objects:  # predicted human mental model objects
-            mm_points_x_human.append(pred_human_mm.dsg.objects[o]["x"])
-            mm_points_y_human.append(pred_human_mm.dsg.objects[o]["y"])
-            plot_colors_human.append(self.class_id_to_color_map[self.class_to_class_id[pred_human_mm.dsg.objects[o]["class"]]])
+        # for o in pred_human_mm.dsg.objects:  # predicted human mental model objects
+        #     mm_points_x_human.append(pred_human_mm.dsg.objects[o]["x"])
+        #     mm_points_y_human.append(pred_human_mm.dsg.objects[o]["y"])
+        #     plot_colors_human.append(self.class_id_to_color_map[self.class_to_class_id[pred_human_mm.dsg.objects[o]["class"]]])
 
-        for o in gt_human_mm.dsg.objects:  # true human mental model objects
-            mm_points_x_human_true.append(gt_human_mm.dsg.objects[o]["x"])
-            mm_points_y_human_true.append(gt_human_mm.dsg.objects[o]["y"])
-            plot_colors_human_true.append(self.class_id_to_color_map[self.class_to_class_id[gt_human_mm.dsg.objects[o]["class"]]])
+        # for o in gt_human_mm.dsg.objects:  # true human mental model objects
+        #     mm_points_x_human_true.append(gt_human_mm.dsg.objects[o]["x"])
+        #     mm_points_y_human_true.append(gt_human_mm.dsg.objects[o]["y"])
+        #     plot_colors_human_true.append(self.class_id_to_color_map[self.class_to_class_id[gt_human_mm.dsg.objects[o]["class"]]])
 
         # robot pose
         line = self.ax_scatter_robot.axes.plot((agent_pose[0][0], agent_pose[0][0] + agent_pose[-1][0]), (agent_pose[0][1], agent_pose[0][1] + agent_pose[-1][1]), color=(0, 0, 0), alpha=1.0)
@@ -165,9 +165,9 @@ class PlotPredHuman():
             human_direction = detected_human["direction"]
             line = self.ax_scatter_robot.axes.plot((human_pose[0][0], human_pose[0][0] + human_direction[0]), (human_pose[0][1], human_pose[0][1] + human_direction[1]), color=(0, 0, 1), alpha=1.0)
             self.pose_lines.append(line[0])
-            mm_points_x_robot.append(human_pose[0][0])
-            mm_points_y_robot.append(human_pose[0][1])
-            plot_colors_robot.append((0,0,1))
+            # mm_points_x_robot.append(human_pose[0][0])
+            # mm_points_y_robot.append(human_pose[0][1])
+            # plot_colors_robot.append((0,0,1))
             human_angle = np.arctan2(human_direction[1], human_direction[0])
             # draw V lines for the human's field of view
             fov = pred_human_mm.fov

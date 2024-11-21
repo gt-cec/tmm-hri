@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm
 import matplotlib.font_manager as fm
 import matplotlib.patches
-import preprocess_sim_detection
 import utils
 import visualization.plot_full_tmm
 import visualization.plot_pred_human
@@ -22,7 +21,8 @@ np.set_printoptions(threshold=sys.maxsize)
 # export PYTORCH_ENABLE_MPS_FALLBACK=1
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
 plt.rcParams['font.family'] = 'Roboto'  # you probably need to install Roboto -- download the ttf from fonts.google.com. On Mac, place the Roboto folder in Library/Fonts and delete ~/.matplotlib/fontList-vXXX.json. On Linux, run sudo fc-cache -fv
-matplotlib.use('QtAgg')
+matplotlib.use('Agg')
+plt.ioff()
 
 classes = sorted(["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass'])
 class_to_class_id = {o : i for i, o in enumerate(classes)}
@@ -48,17 +48,19 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
     human_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, "1")
     print("Done reading poses", len(agent_poses))
 
+    # initialize the environment map, note that this is the "we know the starting layout" assumption
+    initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
+
+    # initialize the mental models
     robot_mm = mental_model.MentalModel()  # initialize the robot's mental model
     gt_human_mm = mental_model.MentalModel()  # initialize the ground truth human's mental model
     pred_human_mm = mental_model.MentalModel()  # initialize the predicted human's mental model
 
-    # initialize the environment map, note that this is the "we know the starting layout" assumption
-    initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
-
     robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
     gt_human_mm.initialize(objects=initial_objects, verbose=False)
-    last_saw_human = (None, [])  # (frame ID, location)
     pred_human_mm.initialize(objects=initial_objects, verbose=False)
+
+    last_saw_human = (None, [])  # (frame ID, location) of where the human was last seen by the robot
 
     # visualization
     if show_plot is not None:
@@ -67,6 +69,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
     # run through frames and update mental models
     frames = sorted([int(x) for x in agent_poses.keys()])
     for frame_id in frames:
+        # load the frame files
         print(f"Processing frame {frame_id}")
         agent_pose = agent_poses[str(frame_id)]
         robot_frame_prefix = f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}_0"
@@ -80,6 +83,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
         depth_1channel = depth[:,:,0]
 
         # update the robot's mental model
+        # if using ground truth, get the detected objects directly from the simulator files
         if use_gt_semantics and os.path.exists(robot_preprocessed_file_path):
             with open(robot_preprocessed_file_path, "rb") as f:
                 (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
@@ -91,7 +95,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
             gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB) if use_gt_semantics else None
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
-        # update the ground truth human mental model
+        # update the ground truth human mental model, requires the ground truth from the simulator
         if os.path.exists(human_preprocessed_file_path):
             with open(human_preprocessed_file_path, "rb") as f:
                 (gt_human_pose, human_detected_objects, _, human_human_detections) = pickle.load(f)
@@ -99,11 +103,12 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
             human_detected_objects = [x for x in human_detected_objects if x["class"] in classes]
             gt_human_mm.update_from_detected_objects(human_detected_objects)
 
+        # if the human is visible to the robot, run the trajectory prediction
         objects_visible_to_human = []  # objects that the robot thinks the human can see
         human_trajectory_debug = None
         # update the human pose
-        if len(robot_human_detections[0]) > 0:  # if a human was seen
-            human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose'
+        if len(robot_human_detections[0]) > 0:  # if a human was seen, use the first one (can place this in a loop to support multiple humans, but we only have one human mental model in play)
+            human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
             human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]  # pose[0] is the base joint, using [east, north, vertical]
             human_direction = pose.get_direction_from_pose(human_pose, use_gt_pose=use_gt_pose)  # get the direction that the human is facing
             robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
@@ -112,27 +117,8 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
 
             # if human has not been seen since before the last frame, predict where the human went since the last view
             if last_saw_human[0] is not None:
-                last = prediction.predict.project_continuous_location_to_map_location(last_saw_human[1][:2], map_boundaries)  # get the last seen location of the human in pixel coordinates
-                curr = prediction.predict.project_continuous_location_to_map_location(human_location[:2], map_boundaries)  # get the current location of the human in pixel coordinates
-                path, all_neighbors = prediction.predict.predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
-                object_locations = []
-                object_index_to_key = {}
-                for i, o in enumerate(robot_mm.dsg.objects):  # get the location of robot's known objects in pixel coordinates
-                    pos = prediction.predict.project_continuous_location_to_map_location([robot_mm.dsg.objects[o]["x"], robot_mm.dsg.objects[o]["y"]], map_boundaries)
-                    object_locations.append([pos[0], pos[1], i])
-                    object_index_to_key[i] = o  # store the index of the object for referencing
-                object_locations = np.array(object_locations)  # convert to numpy array for easier indexing
-                visibility, visible_points = prediction.predict.get_objects_visible_from_path(robot_mm.dsg, path, map_boundaries, pred_human_mm.fov)
-                visible_objects = object_locations[visibility]
-                invisible_objects = object_locations[~np.array(visibility)]
-                human_trajectory_debug = prediction.predict.debug_path(robot_mm.dsg, map_boundaries, path, all_neighbors, visible_objects, visible_points, invisible_objects, pred_human_mm.fov, tag=str(frame_id))
-                # organize the visible objects
-                objects_visible_to_human = []
-                for i, object_is_visible in enumerate(visibility):
-                    if object_is_visible:
-                        objects_visible_to_human.append(robot_mm.dsg.objects[object_index_to_key[i]].as_dict())
+                objects_visible_to_human = prediction.predict.get_objects_visible_from_last_seen(last_saw_human[1][:2], human_location[:2], map_boundaries, robot_mm.dsg, human_fov=gt_human_mm.fov)  # get the visible objects along that path
                 pred_human_mm.update_from_detected_objects(objects_visible_to_human)  # update the predicted human's mental model
-
             last_saw_human = (frame_id, human_location)
 
         if save_plot or show_plot is not None:
@@ -141,7 +127,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
                 human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
-                vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, detected_objects, human_detections, rgb, depth, frame_id)
+                vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
             if save_plot:
                 plt.savefig(f"visualization_frames/frame_{frame_id}.png", dpi=300)
             plt.pause(.01)
