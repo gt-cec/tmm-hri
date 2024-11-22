@@ -2,7 +2,9 @@ imageio
 ipdb
 smplx
 pillow
-numpy
+numpy==1.26.4  # higher than that causes error with mpose
+mmcv<2.2.0
 matplotlib
 opencv-python
 easydict
+pyexr

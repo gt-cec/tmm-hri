@@ -19,15 +19,14 @@ We chose to go with VirtualHome for ease of development, however may later move 
 ### Requirements
 
 - VirtualHome, place in your project workspace, following the instructions on their GitHub
-- PyTorch (use the yolox)
-- AlphaPose
-- MotionBERT
+- PyTorch
+- MMPose
 - OwLv2
 - SAM2
 
 ### Running the simulator (VirtualHome)
 
-The project is slightly modified from the VirtualHome API, and includes a few scripts to run things. We developed this using Ubuntu 20.04.
+The project is slightly modified from the VirtualHome API, and includes a few scripts to help run everything. We developed this using Ubuntu 20.04.
 
 To launch the simulation setup:
 
@@ -52,21 +51,6 @@ To relay the data from the `./Output` folder to ROS, run:
 `python3 ros_interface.py`
 
 This relays the RGB camera, Depth camera, and Pose (location/orientation) of the robot agent for each recorded frame. The orientation is calculated using the vector normal to the plane defined by the hip location and each shoulder location.
-
-To run the example uhumans2 ROS bag, run:
-
-`rosbag play /home/kolb/GT/sample_data/uHumans2_office_s1_00h.bag --clock`
-
-I found the only topics needed are:
-- /tesse/depth_cam/mono/image_raw
-- /tesse/left_cam/rgb/image_raw
-- /tesse/seg_cam/camera_info
-- /tesse/seg_cam/rgb/image_raw
-- /tf
-
-Which can be run with:
-
-`rosbag play uhumans2_nofrontlidar.bag --topics /tesse/depth_cam/mono/image_raw /tesse/left_cam/rgb/image_raw /tesse/seg_cam/camera_info /tesse/seg_cam/rgb/image_raw /tf`
 
 ### Custom DSG: Segmentation (OWL2 + SAM2)
 
@@ -101,10 +85,6 @@ I integrated with OWLv2 and got AlphaPose working, also cleared out much of the 
 
 Next is to use the AlphaPose keypoints for MotionBERT for 3D pose detection.
 
-### Challenges with VirtualHome
-
-For some reason, installing virtualhome ran into various problems with setuptools. I was instead able to modify the base package and import it as a submodule. I submitted pull requests to the main branch to support these changes.
-
 ### Running the dynamic scene graph
 
 (optional) to pre-generate the agent visuals at each frame, run:
@@ -118,3 +98,5 @@ To run the dynamic scene graph, run:
 `python3.12 test_dsg_sim.py`
 
 This will open each pkl file for an agent and run the DSG on it, outputting the result plots to `visualization_frames/`.
+
+You can convert the frames to a video using `frames_to_vid.sh`, which will save to `output.mp4`.
