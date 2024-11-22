@@ -122,9 +122,7 @@ class PoseDetection:
                 pose_est_results[i].pred_instances.bboxes = np.array(bboxes)
 
             # track id
-            track_id, pose_est_results_last, _ = _track(data_sample,
-                                                        pose_est_results_last,
-                                                        args.tracking_thr)
+            track_id, pose_est_results_last, _ = _track(data_sample, pose_est_results_last, args.tracking_thr)
             if track_id == -1:
                 if np.count_nonzero(keypoints[:, :, 1]) >= 3:
                     track_id = next_id
@@ -133,28 +131,20 @@ class PoseDetection:
                     # If the number of keypoints detected is small,
                     # delete that person instance.
                     keypoints[:, :, 1] = -10
-                    pose_est_results[i].pred_instances.set_field(
-                        keypoints, 'keypoints')
-                    pose_est_results[i].pred_instances.set_field(
-                        pred_instances.bboxes * 0, 'bboxes')
+                    pose_est_results[i].pred_instances.set_field(keypoints, 'keypoints')
+                    pose_est_results[i].pred_instances.set_field(pred_instances.bboxes * 0, 'bboxes')
                     pose_est_results[i].set_field(pred_instances, 'pred_instances')
                     track_id = -1
             pose_est_results[i].set_field(track_id, 'track_id')
 
             # convert keypoints for pose-lifting
             pose_est_result_converted = PoseDataSample()
-            pose_est_result_converted.set_field(
-                pose_est_results[i].pred_instances.clone(), 'pred_instances')
-            pose_est_result_converted.set_field(
-                pose_est_results[i].gt_instances.clone(), 'gt_instances')
+            pose_est_result_converted.set_field(pose_est_results[i].pred_instances.clone(), 'pred_instances')
+            pose_est_result_converted.set_field(pose_est_results[i].gt_instances.clone(), 'gt_instances')
             # ipdb.set_trace()
-            keypoints = convert_keypoint_definition(keypoints,
-                                                    pose_det_dataset_name,
-                                                    pose_lift_dataset_name)
-            pose_est_result_converted.pred_instances.set_field(
-                keypoints, 'keypoints')
-            pose_est_result_converted.set_field(pose_est_results[i].track_id,
-                                                'track_id')
+            keypoints = convert_keypoint_definition(keypoints, pose_det_dataset_name, pose_lift_dataset_name)
+            pose_est_result_converted.pred_instances.set_field(keypoints, 'keypoints')
+            pose_est_result_converted.set_field(pose_est_results[i].track_id, 'track_id')
             pose_est_results_converted.append(pose_est_result_converted)
 
         pose_est_results_list.append(pose_est_results_converted.copy())
@@ -347,13 +337,9 @@ class PoseDetection:
         return theta_deg
 
 
-"""
-Now that preliminary functions are done
-"""
-
-pose = PoseDetection()
-
 if __name__ == "__main__":
+    pose = PoseDetection()
+
     # Run above file discovery
     padded_numbers = [
         "0017", "0018", "0019", "0020", "0021", "0022", "0023",
