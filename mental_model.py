@@ -2,14 +2,16 @@
 
 from dsg import dsg
 # from segmentation import scene_segmentation
-# from detection import detect
+from detection import detect
 from segmentation import segment
+from pose_estimation import test_demo
 import math, numpy, utils
 
 class MentalModel:
     def __init__(self):
         self.dsg = dsg.DSG()
         self.fov = 40
+        self.poseDetector = test_demo.PoseDetection()
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:
@@ -56,6 +58,13 @@ class MentalModel:
             # segment the objects
             boxes = [o["box"] for o in detected_objects]
             seg_masks = segment.segment(rgb, boxes)
+
+        # get the pose for each human
+        for i in range(len(detected_humans)):
+            theta_deg = self.poseDetector.get_heading_of_person(rgb)
+            print("THETA DEG!!", theta_deg)
+            detected_humans[i]["pose"] = theta_deg
+        print("DETECTED HUMANS", detected_humans)
 
         # make sure the seg mask and detected object dimensions match
         assert len(detected_objects) == len(seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(seg_masks)}), one of these modules is misperforming."

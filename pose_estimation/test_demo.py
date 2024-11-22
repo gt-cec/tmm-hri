@@ -1,21 +1,19 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from functools import partial
 import utils
-import plots
+import pose_estimation.plots
 import cv2
 import numpy as np
-from mmpose.apis import (_track_by_iou, _track_by_oks,
-                         convert_keypoint_definition, extract_pose_sequence,
+import pose_estimation.hack_registry
+from mmpose.apis import (convert_keypoint_definition, extract_pose_sequence,
                          inference_pose_lifter_model, inference_topdown,
                          init_model)
 from mmpose.structures import (PoseDataSample, merge_data_samples)
 from mmpose.utils import adapt_mmdet_pipeline
+import detection.detect
+import torch
 
-try:
-    from mmdet.apis import inference_detector, init_detector
-    has_mmdet = True
-except (ImportError, ModuleNotFoundError):
-    has_mmdet = False
+has_mmdet = False
 
 """
 Processing depth but stored as rgba.
@@ -41,16 +39,15 @@ skeleton_links = [
 class PoseDetection:
     def __init__(self):
         print("Initialize pose detector")
-        self.det_config = './models/rtmdet_m_640-8xb32_coco-person.py'
+        self.det_config = './pose_estimation/models/rtmdet_m_640-8xb32_coco-person.py'
         self.det_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmpose/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth'  # Detector checkpoint file path
-        self.pose_estimator_config = './models/rtmpose-m_8xb256-420e_body8-256x192.py'
+        self.pose_estimator_config = './pose_estimation/models/rtmpose-m_8xb256-420e_body8-256x192.py'
         self.pose_estimator_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.pth'  # Pose estimator checkpoint file path
-        self.pose_lifter_config = './models/video-pose-lift_tcn-27frm-supv_8xb128-160e_fit3d.py'  # Pose lifter configuration file path
-        self.pose_lifter_checkpoint = './models/best_MPJPE_epoch_98.pth'
+        self.pose_lifter_config = './pose_estimation/models/video-pose-lift_tcn-27frm-supv_8xb128-160e_fit3d.py'  # Pose lifter configuration file path
+        self.pose_lifter_checkpoint = './pose_estimation/models/best_MPJPE_epoch_98.pth'
         self.device = 'cpu'  # Device to use (e.g., 'cuda' or 'cpu')
         self.det_cat_id = 0  # Category ID for detection (e.g., person)
         self.bbox_thr = 0.5  # Bounding box threshold
-        self.use_oks_tracking = False  # Whether to use OKS tracking
         self.tracking_thr = 0.3  # Tracking threshold
         self.disable_norm_pose_2d = True  # Disable 2D pose normalization
         self.disable_rebase_keypoint = False  # Disable keypoint rebase
@@ -59,9 +56,6 @@ class PoseDetection:
         self.show = False  # Whether to show visualization
         self.show_interval = 0  # Interval between frames for visualization
     
-        self.detector = init_detector( self.det_config, self.det_checkpoint, device=self.device.lower())
-        self.detector.cfg = adapt_mmdet_pipeline(self.detector.cfg)
-
         self.pose_estimator = init_model(self.pose_estimator_config, self.pose_estimator_checkpoint, device=self.device.lower())
         self.pose_lifter = init_model(self.pose_lifter_config, self.pose_lifter_checkpoint, device=self.device.lower())
         print("Completed initializing pose detector")
@@ -71,30 +65,37 @@ class PoseDetection:
     # This equates to root depth, which we use to adjust the rootrel 3D pose estimation in test_demo.
     def process_one_image(self, args, detector, frame, frame_idx, pose_estimator,
                         pose_est_results_last, pose_est_results_list, next_id,
-                        pose_lifter, visualize_frame, visualizer):
+                        pose_lifter, visualize_frame):
         """Visualize detected and predicted keypoints of one image.
         """
         pose_lift_dataset = pose_lifter.cfg.test_dataloader.dataset
         pose_lift_dataset_name = pose_lifter.dataset_meta['dataset_name']
 
-        # First stage: conduct 2D pose detection in a Topdown manner
-        # use detector to obtain person bounding boxes
-        det_result = inference_detector(detector, frame)
-        pred_instance = det_result.pred_instances.cpu().numpy()
-
-        # filter out the person instances with category and bbox threshold
-        # e.g. 0 for person in COCO
-        bboxes = pred_instance.bboxes
-        bboxes = bboxes[np.logical_and(pred_instance.labels == args.det_cat_id,
-                                    pred_instance.scores > args.bbox_thr)]
+        model = detection.detect.model
+        processor = detection.detect.processor
+    
+        image = frame[..., ::-1]  # Convert BGR to RGB (as OpenCV loads it in BGR)
+        text_queries = ["person"]
+    
+        # Preprocess and run inference
+        inputs = processor(text=text_queries, images=image, return_tensors="pt")
+        with torch.no_grad():
+            outputs = model(**inputs)
+    
+        # Post-process to get bounding boxes
+        target_size = torch.tensor([[image.shape[0], image.shape[1]]])
+        results = processor.post_process_object_detection(outputs, target_sizes=target_size, threshold=0.1)
+    
+        # Extract bounding boxes for persons
+        bboxes = []
+        for result in results:
+            for label, box, score in zip(result["labels"], result["boxes"], result["scores"]):
+                if label == 0 and score > 0.11:  # Assuming label '0' corresponds to 'person' and score threshold is 0.3
+                    x1, y1, x2, y2 = box.int().tolist()
+                    bboxes.append([x1, y1, x2, y2])
 
         # estimate pose results for current image
         pose_est_results = inference_topdown(pose_estimator, frame, bboxes)
-
-        if args.use_oks_tracking:
-            _track = partial(_track_by_oks)
-        else:
-            _track = _track_by_iou
 
         pose_det_dataset_name = pose_estimator.dataset_meta['dataset_name']
         pose_est_results_converted = []
@@ -121,22 +122,6 @@ class PoseDetection:
                 pose_est_results[i].pred_instances.areas = np.array(areas)
                 pose_est_results[i].pred_instances.bboxes = np.array(bboxes)
 
-            # track id
-            track_id, pose_est_results_last, _ = _track(data_sample, pose_est_results_last, args.tracking_thr)
-            if track_id == -1:
-                if np.count_nonzero(keypoints[:, :, 1]) >= 3:
-                    track_id = next_id
-                    next_id += 1
-                else:
-                    # If the number of keypoints detected is small,
-                    # delete that person instance.
-                    keypoints[:, :, 1] = -10
-                    pose_est_results[i].pred_instances.set_field(keypoints, 'keypoints')
-                    pose_est_results[i].pred_instances.set_field(pred_instances.bboxes * 0, 'bboxes')
-                    pose_est_results[i].set_field(pred_instances, 'pred_instances')
-                    track_id = -1
-            pose_est_results[i].set_field(track_id, 'track_id')
-
             # convert keypoints for pose-lifting
             pose_est_result_converted = PoseDataSample()
             pose_est_result_converted.set_field(pose_est_results[i].pred_instances.clone(), 'pred_instances')
@@ -149,7 +134,6 @@ class PoseDetection:
 
         pose_est_results_list.append(pose_est_results_converted.copy())
         
-        # ipdb.set_trace()
         # Second stage: Pose lifting
         # extract and pad input pose2d sequence
         pose_seq_2d = extract_pose_sequence(
@@ -197,43 +181,25 @@ class PoseDetection:
             pose_lift_results, key=lambda x: x.get('track_id', 1e4))
 
         pred_3d_data_samples = merge_data_samples(pose_lift_results)
-        det_data_sample = merge_data_samples(pose_est_results)
         pred_3d_instances = pred_3d_data_samples.get('pred_instances', None)
 
         if args.num_instances < 0:
             args.num_instances = len(pose_lift_results)
-
-        # Visualization
-        if visualizer is not None:
-            visualizer.add_datasample(
-                'result',
-                visualize_frame,
-                data_sample=pred_3d_data_samples,
-                det_data_sample=det_data_sample,
-                draw_gt=False,
-                dataset_2d=pose_det_dataset_name,
-                dataset_3d=pose_lift_dataset_name,
-                show=args.show,
-                draw_bbox=True,
-                kpt_thr=args.kpt_thr,
-                num_instances=args.num_instances,
-                wait_time=args.show_interval)
 
         return pose_est_results, pose_est_results_list, pred_3d_instances, next_id
     
     def get_heading_of_person(self, frame, gt_person_loc=None, gt_person_heading=None, gt_robot_loc=None, gt_robot_heading=None):
         _, pred_2d_poses, pred_3d_instances, _ = self.process_one_image(
             args=self,
-            detector=pose.detector,
+            detector=self.detector,
             frame=frame,
             frame_idx=0,
-            pose_estimator=pose.pose_estimator,
+            pose_estimator=self.pose_estimator,
             pose_est_results_last=[],
             pose_est_results_list=[],
             next_id=0,
-            pose_lifter=pose.pose_lifter,
-            visualize_frame=frame,
-            visualizer=None)
+            pose_lifter=self.pose_lifter,
+            visualize_frame=frame)
 
         keypoints = [pose.pred_instances.keypoints[0] for pose in pred_2d_poses[0]]  # List of keypoints for all persons
         first_person_3d = pred_3d_instances.keypoints[0]

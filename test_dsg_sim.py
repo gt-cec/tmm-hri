@@ -89,6 +89,10 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
                 (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
             robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
             robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
+            # if not using ground truth pose, get the human pose
+            if not use_gt_pose:
+                print("NOT USING GT POSE")
+                
             robot_mm.update_from_detected_objects(robot_detected_objects)
         else:  # otherwise process the frame now
             gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") if use_gt_semantics else None # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
@@ -111,6 +115,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
             human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
             human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]  # pose[0] is the base joint, using [east, north, vertical]
             human_direction = pose.get_direction_from_pose(human_pose, use_gt_pose=use_gt_pose)  # get the direction that the human is facing
+            print("DIRECTION!", human_direction)
             robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
             robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
             robot_human_detections[0][0]["visible objects"] = objects_visible_to_human  # update the human's visible objects in the detections
@@ -141,5 +146,5 @@ if __name__ == "__main__":
     agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
-    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_pose=True, use_gt_semantics=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
+    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_pose=False, use_gt_semantics=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
     print("Done.")
