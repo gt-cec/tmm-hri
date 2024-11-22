@@ -16,7 +16,6 @@ try:
     has_mmdet = True
 except (ImportError, ModuleNotFoundError):
     has_mmdet = False
-from tqdm import tqdm
 
 """
 Processing depth but stored as rgba.
@@ -232,7 +231,7 @@ class PoseDetection:
 
         return pose_est_results, pose_est_results_list, pred_3d_instances, next_id
     
-    def get_heading_of_person(self, frame, GT_PERSON_LOC, GT_PERSON_HEADING, GT_ROBOT_LOC, GT_ROBOT_HEADING):
+    def get_heading_of_person(self, frame, gt_person_loc=None, gt_person_heading=None, gt_robot_loc=None, gt_robot_heading=None):
         _, pred_2d_poses, pred_3d_instances, _ = self.process_one_image(
             args=self,
             detector=pose.detector,
@@ -269,8 +268,6 @@ class PoseDetection:
 
         FOV = 60  # Horizontal field of view in degrees
         IMG_RES = (512, 512)  # Resolution of the image
-
-
 
         rw_coordinates = utils.calculate_rw_coordinates(keypoints[0][0], mean_depth, FOV, IMG_RES)
         # print("Real-world coordinates (X, Y, Z):", rw_coordinates)
@@ -327,23 +324,27 @@ class PoseDetection:
         predicted_forward = -1 * np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)
         predicted_heading = predicted_forward / np.linalg.norm(predicted_forward)
 
-        plots.visualize_combined(
-            image=frame,  # Input image for 2D visualization
-            first_person_3d = first_person_3d,  # 
-            keypoints_2d=keypoints[0],  # 2D keypoints for the person
-            skeleton_links=skeleton_links,  # Skeleton links for visualization
-            keypoint_index=keypoint_index,  # Keypoint index mapping
-            keypoints_3d=PRED_SKELETON,  # Predicted 3D skeleton
-            GT_PERSON_LOC=GT_PERSON_LOC,  # Ground truth person location
-            GT_PERSON_HEADING=GT_PERSON_HEADING,  # Ground truth person heading
-            GT_ROBOT_LOC=GT_ROBOT_LOC,  # Ground truth robot location
-            GT_ROBOT_HEADING=GT_ROBOT_HEADING,  # Ground truth robot heading
-            PRED_PERSON_LOC=PRED_PERSON_LOC,  # Predicted person location
-            predicted_heading=predicted_heading,  # Predicted person heading
-            rw_coordinates=rw_coordinates,  # Real-world coordinates of predicted person
-            mean_depth=mean_depth,  # Mean root depth of predicted person
-            save_path=f'./11_19_top_down_comb_{FRAME_INDEX}.png'
-        )
+        # if the ground truth data was supplied, visualize the heading
+        if gt_person_loc is not None and gt_person_heading is not None and gt_robot_loc is not None and gt_robot_heading is not None:
+            plots.visualize_combined(
+                image=frame,  # Input image for 2D visualization
+                first_person_3d = first_person_3d,  # 
+                keypoints_2d=keypoints[0],  # 2D keypoints for the person
+                skeleton_links=skeleton_links,  # Skeleton links for visualization
+                keypoint_index=keypoint_index,  # Keypoint index mapping
+                keypoints_3d=PRED_SKELETON,  # Predicted 3D skeleton
+                GT_PERSON_LOC=gt_person_loc,  # Ground truth person location
+                GT_PERSON_HEADING=gt_person_heading,  # Ground truth person heading
+                GT_ROBOT_LOC=gt_robot_loc,  # Ground truth robot location
+                GT_ROBOT_HEADING=gt_robot_heading,  # Ground truth robot heading
+                PRED_PERSON_LOC=PRED_PERSON_LOC,  # Predicted person location
+                predicted_heading=predicted_heading,  # Predicted person heading
+                rw_coordinates=rw_coordinates,  # Real-world coordinates of predicted person
+                mean_depth=mean_depth,  # Mean root depth of predicted person
+                save_path=f'./11_19_top_down_comb_{FRAME_INDEX}.png'
+            )
+
+        return theta_deg
 
 
 """
@@ -365,14 +366,12 @@ if __name__ == "__main__":
     robot_poses = utils.get_agent_pose_per_frame(ROBOT_POSES_PATH)
     human_poses = utils.get_agent_pose_per_frame(HUMAN_POSES_PATH)
 
-    for FRAME_INDEX in tqdm(padded_numbers):
-        # Add GT headings
+    for FRAME_INDEX in padded_numbers:
         FRAME_INDEX_NONPAD = str(int(FRAME_INDEX))
 
-        ## Perform pose inference
-        pose.input = f'../episodes/episode_2024-09-04-16-32_agents_2_run_19/0/Action_{FRAME_INDEX}_0_normal.png'  # Input file path (image or video)
-        frame = cv2.cvtColor(cv2.imread(pose.input), cv2.COLOR_BGR2RGB)
-
+        # Perform pose inference
+        rgb_path = f'../episodes/episode_2024-09-04-16-32_agents_2_run_19/0/Action_{FRAME_INDEX}_0_normal.png'  # Input file path (image or video)
+        frame = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
         seg_map_path = f'../episodes/episode_2024-09-04-16-32_agents_2_run_19/0/Action_{FRAME_INDEX}_0_seg_class.png'
         depth_map_path = f'../episodes/episode_2024-09-04-16-32_agents_2_run_19/0/Action_{FRAME_INDEX}_0_depth.exr'
         
@@ -381,7 +380,7 @@ if __name__ == "__main__":
         GT_PERSON_HEADING = human_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(human_poses[FRAME_INDEX_NONPAD][-1][:2])
         GT_ROBOT_HEADING = robot_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(robot_poses[FRAME_INDEX_NONPAD][-1][:2])
 
-        theta_deg = pose.get_heading_of_person(frame, GT_PERSON_LOC, GT_PERSON_HEADING, GT_ROBOT_LOC, GT_ROBOT_HEADING)
+        theta_deg = pose.get_heading_of_person(frame, gt_person_loc=GT_PERSON_LOC, gt_person_heading=GT_PERSON_HEADING, gt_robot_loc=GT_ROBOT_LOC, gt_robot_heading=GT_ROBOT_HEADING)
         
         # ipdb.set_trace()
         print(f"Plot saved successfully for {FRAME_INDEX}")
