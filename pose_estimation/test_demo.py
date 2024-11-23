@@ -72,17 +72,19 @@ class PoseDetection:
     # This script takes as input a single image, 
     # then outputs the mean depth of the person in the image
     # This equates to root depth, which we use to adjust the rootrel 3D pose estimation in test_demo.
-    def process_one_image(self, args, detector, frame, frame_idx, pose_estimator,
-                        pose_est_results_last, pose_est_results_list, next_id,
+    def process_one_image(self, args, detector, robot_rgb, pose_estimator,
+                        pose_est_results_last, pose_est_results_list,
                         pose_lifter, visualize_frame):
         """Visualize detected and predicted keypoints of one image.
         """
         pose_lift_dataset = pose_lifter.cfg.test_dataloader.dataset
         pose_lift_dataset_name = pose_lifter.dataset_meta['dataset_name']
 
+        print("###", pose_lift_dataset)
+
         # First stage: conduct 2D pose detection in a Topdown manner
         # use detector to obtain person bounding boxes
-        det_result = inference_detector(detector, frame)
+        det_result = inference_detector(detector, robot_rgb)
         pred_instance = det_result.pred_instances.cpu().numpy()
 
         # filter out the person instances with category and bbox threshold
@@ -92,7 +94,7 @@ class PoseDetection:
                                     pred_instance.scores > args.bbox_thr)]
 
         # estimate pose results for current image
-        pose_est_results = inference_topdown(pose_estimator, frame, bboxes)
+        pose_est_results = inference_topdown(pose_estimator, robot_rgb, bboxes)
 
         _track = _track_by_iou
 
@@ -125,8 +127,7 @@ class PoseDetection:
             track_id, pose_est_results_last, _ = _track(data_sample, pose_est_results_last, args.tracking_thr)
             if track_id == -1:
                 if np.count_nonzero(keypoints[:, :, 1]) >= 3:
-                    track_id = next_id
-                    next_id += 1
+                    track_id = 0
                 else:
                     # If the number of keypoints detected is small,
                     # delete that person instance.
@@ -141,7 +142,6 @@ class PoseDetection:
             pose_est_result_converted = PoseDataSample()
             pose_est_result_converted.set_field(pose_est_results[i].pred_instances.clone(), 'pred_instances')
             pose_est_result_converted.set_field(pose_est_results[i].gt_instances.clone(), 'gt_instances')
-            # ipdb.set_trace()
             keypoints = convert_keypoint_definition(keypoints, pose_det_dataset_name, pose_lift_dataset_name)
             pose_est_result_converted.pred_instances.set_field(keypoints, 'keypoints')
             pose_est_result_converted.set_field(pose_est_results[i].track_id, 'track_id')
@@ -151,12 +151,7 @@ class PoseDetection:
         
         # Second stage: Pose lifting
         # extract and pad input pose2d sequence
-        pose_seq_2d = extract_pose_sequence(
-            pose_est_results_list,
-            frame_idx=frame_idx,
-            causal=pose_lift_dataset.get('causal', False),
-            seq_len=pose_lift_dataset.get('seq_len', 1),
-            step=pose_lift_dataset.get('seq_step', 1))
+        pose_seq_2d = extract_pose_sequence(pose_est_results_list, frame_idx=0, causal=False, seq_len=1, step=1)
 
         # conduct 2D-to-3D pose lifting
         norm_pose_2d = not self.disable_norm_pose_2d
@@ -199,18 +194,17 @@ class PoseDetection:
         if args.num_instances < 0:
             args.num_instances = len(pose_lift_results)
 
-        return pose_est_results, pose_est_results_list, pred_3d_instances, next_id
+        return pose_est_results_list, pred_3d_instances
     
     def get_heading_of_person(self, rgb, seg_map, depth_map, robot_loc, robot_heading):
-        _, pred_2d_poses, pred_3d_instances, _ = self.process_one_image(
+        # get the pose lifting
+        pred_2d_poses, pred_3d_instances = self.process_one_image(
             args=self,
             detector=self.detector,
-            frame=rgb,
-            frame_idx=0,
+            robot_rgb=rgb,
             pose_estimator=self.pose_estimator,
             pose_est_results_last=[],
             pose_est_results_list=[],
-            next_id=0,
             pose_lifter=self.pose_lifter,
             visualize_frame=rgb)
 
@@ -235,7 +229,7 @@ class PoseDetection:
         pred_person_loc[0] += x_offset
         pred_person_loc[1] += y_offset
 
-        FOV = 60  # Horizontal field of view in degrees
+        FOV = 40  # Horizontal field of view in degrees
         IMG_RES = (512, 512)  # Resolution of the image
 
         rw_coordinates = utils.calculate_rw_coordinates(keypoints[0][0], mean_depth, FOV, IMG_RES)
@@ -280,7 +274,7 @@ class PoseDetection:
         pred_skeleton[...,0] += pred_person_loc[0]
         pred_skeleton[...,1] += pred_person_loc[1]
         
-        # # Calculate the orientation using shoulders
+        # Calculate the orientation using shoulders
         left_shoulder_idx = keypoint_index['left_shoulder']
         right_shoulder_idx = keypoint_index['right_shoulder']
 
@@ -293,7 +287,7 @@ class PoseDetection:
         predicted_forward = -1 * np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)
         predicted_heading = predicted_forward / np.linalg.norm(predicted_forward)
 
-        return theta_deg, first_person_3d, keypoints, pred_skeleton, pred_person_loc, predicted_heading, rw_coordinates, mean_depth
+        return pred_person_loc, predicted_heading, rw_coordinates, mean_depth, first_person_3d, keypoints, pred_skeleton
 
 
 if __name__ == "__main__":
@@ -326,13 +320,13 @@ if __name__ == "__main__":
         seg_map = cv2.imread(seg_map_path)
         depth_map = cv2.imread(depth_map_path,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
 
-        gt_person_loc = human_poses[FRAME_INDEX_NONPAD][0]
         robot_loc = robot_poses[FRAME_INDEX_NONPAD][0]
+        gt_person_loc = human_poses[FRAME_INDEX_NONPAD][0]
         gt_person_heading = human_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(human_poses[FRAME_INDEX_NONPAD][-1][:2])
         robot_heading = robot_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(robot_poses[FRAME_INDEX_NONPAD][-1][:2])
 
-        theta_deg, first_person_3d, keypoints, pred_skeleton, pred_person_loc, predicted_heading, rw_coordinates, mean_depth = pose.get_heading_of_person(frame, seg_map, depth_map, robot_loc=robot_loc, robot_heading=robot_heading)
-        
+        pred_person_loc, predicted_heading, rw_coordinates, mean_depth, first_person_3d, keypoints, pred_skeleton = pose.get_heading_of_person(frame, seg_map, depth_map, robot_loc=robot_loc, robot_heading=robot_heading)
+
         # if the ground truth data was supplied, visualize the heading
         if gt_person_loc is not None and gt_person_heading is not None and robot_loc is not None and robot_heading is not None:
             pose_estimation.plots.visualize_combined(
@@ -355,4 +349,3 @@ if __name__ == "__main__":
 
         # ipdb.set_trace()
         print(f"Plot saved successfully for {FRAME_INDEX}")
-        print("Degrees offset was: ", theta_deg)
