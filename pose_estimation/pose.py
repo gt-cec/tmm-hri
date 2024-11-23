@@ -8,5 +8,4 @@ def get_direction_from_pose(pose:list, use_gt_pose=False) -> list:
         return pose[-1]  # use the coordinate system (east, north, vertical)
     # get direction from observed pose
     else:
-        print("POSE DIRECTION FROM NON-GT IS NOT IMPLEMENTED")
-        return pose[-1]  # use the coordinate system (east, north, vertical)
+        return pose  # use the coordinate system (east, north, vertical)

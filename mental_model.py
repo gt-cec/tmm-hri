@@ -60,10 +60,7 @@ class MentalModel:
             seg_masks = segment.segment(rgb, boxes)
 
         # get the pose for each human
-        for i in range(len(detected_humans)):
-            theta_deg = self.poseDetector.get_heading_of_person(rgb)
-            print("THETA DEG!!", theta_deg)
-            detected_humans[i]["pose"] = theta_deg
+        detected_humans = self.get_human_poses_from_rgb_and_detected_humans(rgb, detected_humans)
         print("DETECTED HUMANS", detected_humans)
 
         # make sure the seg mask and detected object dimensions match
@@ -74,6 +71,14 @@ class MentalModel:
         self.dsg.update(detected_objects)
 
         return detected_objects, (detected_humans, depth_detected_humans, filtered_detected_humans)
+
+    # get human poses
+    def get_human_poses_from_rgb_seg_depth_and_detected_humans(self, rgb, seg_map, depth_map, detected_humans, robot_pose):
+        for i in range(len(detected_humans)):
+            theta_deg = self.poseDetector.get_heading_of_person(rgb, seg_map, depth_map, robot_pose)
+            print("THETA DEG!!", math.degrees(math.atan2(theta_deg[1], theta_deg[0])))
+            detected_humans[i]["pose"] = theta_deg
+        return detected_humans
 
     # if you already have the detected objects through preprocessing, just update the DSG directly
     def update_from_detected_objects(self, detected_objects):

@@ -11,6 +11,7 @@ from mmpose.apis import (_track_by_iou,
                          init_model)
 from mmpose.structures import (PoseDataSample, merge_data_samples)
 from mmpose.utils import adapt_mmdet_pipeline
+import pyexr
 
 try:
     from mmdet.apis import inference_detector, init_detector
@@ -149,6 +150,7 @@ class PoseDetection:
 
         pose_est_results_list.append(pose_est_results_converted.copy())
         
+        # ipdb.set_trace()
         # Second stage: Pose lifting
         # extract and pad input pose2d sequence
         pose_seq_2d = extract_pose_sequence(
@@ -181,6 +183,8 @@ class PoseDetection:
                 keypoints = np.squeeze(keypoints, axis=1)
 
             keypoints = keypoints[..., [0, 2, 1]]
+            # keypoints[..., 0] = -keypoints[..., 0]
+            # keypoints[..., 1] = -keypoints[..., 1]
             keypoints[..., 2] = -keypoints[..., 2]
 
             # rebase height (z-axis)
@@ -201,18 +205,18 @@ class PoseDetection:
 
         return pose_est_results, pose_est_results_list, pred_3d_instances, next_id
     
-    def get_heading_of_person(self, rgb, seg_map, depth_map, robot_loc, robot_heading):
+    def get_heading_of_person(self, frame, seg_map, depth_map, gt_person_loc=None, gt_person_heading=None, gt_robot_loc=None, gt_robot_heading=None):
         _, pred_2d_poses, pred_3d_instances, _ = self.process_one_image(
             args=self,
             detector=self.detector,
-            frame=rgb,
+            frame=frame,
             frame_idx=0,
             pose_estimator=self.pose_estimator,
             pose_est_results_last=[],
             pose_est_results_list=[],
             next_id=0,
             pose_lifter=self.pose_lifter,
-            visualize_frame=rgb)
+            visualize_frame=frame)
 
         keypoints = [pose.pred_instances.keypoints[0] for pose in pred_2d_poses[0]]  # List of keypoints for all persons
         first_person_3d = pred_3d_instances.keypoints[0]
@@ -222,9 +226,9 @@ class PoseDetection:
         mean_depth = utils.compute_mean_depth(seg_map, depth_map, target_value)
         mean_depth += 0.15 # account for thickness of body adjustment.
 
-        pred_person_loc = robot_loc.copy()
+        PRED_PERSON_LOC= robot_poses[FRAME_INDEX_NONPAD][0].copy()
 
-        heading_xy = robot_heading
+        heading_xy = GT_ROBOT_HEADING
         # Compute rotation angle
         theta = np.arctan2(heading_xy[1], heading_xy[0])
         theta_deg = np.degrees(theta)
@@ -232,8 +236,8 @@ class PoseDetection:
         x_offset = cos_theta * mean_depth
         y_offset = sin_theta * mean_depth
 
-        pred_person_loc[0] += x_offset
-        pred_person_loc[1] += y_offset
+        PRED_PERSON_LOC[0]+=x_offset
+        PRED_PERSON_LOC[1]+=y_offset
 
         FOV = 60  # Horizontal field of view in degrees
         IMG_RES = (512, 512)  # Resolution of the image
@@ -247,9 +251,9 @@ class PoseDetection:
         x_offset_perpendicular = perpendicular_heading[0] * rw_coordinates[0]
         y_offset_perpendicular = perpendicular_heading[1] * rw_coordinates[0]
 
-        pred_person_loc[0] += x_offset_perpendicular
-        pred_person_loc[1] += y_offset_perpendicular
-        pred_skeleton = first_person_3d.copy()
+        PRED_PERSON_LOC[0] += x_offset_perpendicular
+        PRED_PERSON_LOC[1] += y_offset_perpendicular
+        PRED_SKELETON=first_person_3d.copy()
 
         """
         Here we calculate the angle between the default camera centric heading (0,1) and the GT robot heading.
@@ -257,7 +261,7 @@ class PoseDetection:
         default_y_axis = np.array([0, 1])
 
         # Predicted robot heading (assumes it's already normalized)
-        pred_robot_heading = robot_heading
+        pred_robot_heading = GT_ROBOT_HEADING
 
         # Compute the angle (in radians) using the dot product
         dot_product = np.dot(default_y_axis, pred_robot_heading)
@@ -276,24 +280,44 @@ class PoseDetection:
         ])
 
         # Apply the rotation to the skeleton
-        pred_skeleton = np.dot(first_person_3d, rotation_matrix.T)  # Rotate skeleton
-        pred_skeleton[...,0] += pred_person_loc[0]
-        pred_skeleton[...,1] += pred_person_loc[1]
+        PRED_SKELETON = np.dot(first_person_3d, rotation_matrix.T)  # Rotate skeleton
+        PRED_SKELETON[...,0]+=PRED_PERSON_LOC[0]
+        PRED_SKELETON[...,1]+=PRED_PERSON_LOC[1]
         
         # # Calculate the orientation using shoulders
         left_shoulder_idx = keypoint_index['left_shoulder']
         right_shoulder_idx = keypoint_index['right_shoulder']
 
         # Predicted heading using shoulders and hip
-        hip_loc = pred_skeleton[0][:3]  # Extract hip location as root
-        right_shoulder_loc = pred_skeleton[right_shoulder_idx][:3]
-        left_shoulder_loc = pred_skeleton[left_shoulder_idx][:3]
+        hip_loc = PRED_SKELETON[0][:3]  # Extract hip location as root
+        right_shoulder_loc = PRED_SKELETON[right_shoulder_idx][:3]
+        left_shoulder_loc = PRED_SKELETON[left_shoulder_idx][:3]
 
         # Compute forward vector (same logic as GT)
         predicted_forward = -1 * np.cross(right_shoulder_loc - hip_loc, left_shoulder_loc - hip_loc)
         predicted_heading = predicted_forward / np.linalg.norm(predicted_forward)
 
-        return theta_deg, first_person_3d, keypoints, pred_skeleton, pred_person_loc, predicted_heading, rw_coordinates, mean_depth
+        # if the ground truth data was supplied, visualize the heading
+        if gt_person_loc is not None and gt_person_heading is not None and gt_robot_loc is not None and gt_robot_heading is not None:
+            pose_estimation.plots.visualize_combined(
+                image=frame,  # Input image for 2D visualization
+                first_person_3d = first_person_3d,  # 
+                keypoints_2d=keypoints[0],  # 2D keypoints for the person
+                skeleton_links=skeleton_links,  # Skeleton links for visualization
+                keypoint_index=keypoint_index,  # Keypoint index mapping
+                keypoints_3d=PRED_SKELETON,  # Predicted 3D skeleton
+                GT_PERSON_LOC=gt_person_loc,  # Ground truth person location
+                GT_PERSON_HEADING=gt_person_heading,  # Ground truth person heading
+                GT_ROBOT_LOC=gt_robot_loc,  # Ground truth robot location
+                GT_ROBOT_HEADING=gt_robot_heading,  # Ground truth robot heading
+                PRED_PERSON_LOC=PRED_PERSON_LOC,  # Predicted person location
+                predicted_heading=predicted_heading,  # Predicted person heading
+                rw_coordinates=rw_coordinates,  # Real-world coordinates of predicted person
+                mean_depth=mean_depth,  # Mean root depth of predicted person
+                save_path=f'./11_19_top_down_comb_{FRAME_INDEX}.png'
+            )
+
+        return theta_deg
 
 
 if __name__ == "__main__":
@@ -326,33 +350,16 @@ if __name__ == "__main__":
         seg_map = cv2.imread(seg_map_path)
         depth_map = cv2.imread(depth_map_path,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
 
-        gt_person_loc = human_poses[FRAME_INDEX_NONPAD][0]
-        robot_loc = robot_poses[FRAME_INDEX_NONPAD][0]
-        gt_person_heading = human_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(human_poses[FRAME_INDEX_NONPAD][-1][:2])
-        robot_heading = robot_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(robot_poses[FRAME_INDEX_NONPAD][-1][:2])
+        exr_data = pyexr.open(depth_map_path)
+        depth_map = exr_data.get("R")
 
-        theta_deg, first_person_3d, keypoints, pred_skeleton, pred_person_loc, predicted_heading, rw_coordinates, mean_depth = pose.get_heading_of_person(frame, seg_map, depth_map, robot_loc=robot_loc, robot_heading=robot_heading)
+        GT_PERSON_LOC = human_poses[FRAME_INDEX_NONPAD][0]
+        GT_ROBOT_LOC = robot_poses[FRAME_INDEX_NONPAD][0]
+        GT_PERSON_HEADING = human_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(human_poses[FRAME_INDEX_NONPAD][-1][:2])
+        GT_ROBOT_HEADING = robot_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(robot_poses[FRAME_INDEX_NONPAD][-1][:2])
+
+        theta_deg = pose.get_heading_of_person(frame, seg_map, depth_map, gt_person_loc=GT_PERSON_LOC, gt_person_heading=GT_PERSON_HEADING, gt_robot_loc=GT_ROBOT_LOC, gt_robot_heading=GT_ROBOT_HEADING)
         
-        # if the ground truth data was supplied, visualize the heading
-        if gt_person_loc is not None and gt_person_heading is not None and robot_loc is not None and robot_heading is not None:
-            pose_estimation.plots.visualize_combined(
-                image=frame,  # Input image for 2D visualization
-                first_person_3d = first_person_3d,  # 
-                keypoints_2d=keypoints[0],  # 2D keypoints for the person
-                skeleton_links=skeleton_links,  # Skeleton links for visualization
-                keypoint_index=keypoint_index,  # Keypoint index mapping
-                keypoints_3d=pred_skeleton,  # Predicted 3D skeleton
-                GT_PERSON_LOC=gt_person_loc,  # Ground truth person location
-                GT_PERSON_HEADING=gt_person_heading,  # Ground truth person heading
-                GT_ROBOT_LOC=robot_loc,  # Ground truth robot location
-                GT_ROBOT_HEADING=robot_heading,  # Ground truth robot heading
-                PRED_PERSON_LOC=pred_person_loc,  # Predicted person location
-                predicted_heading=predicted_heading,  # Predicted person heading
-                rw_coordinates=rw_coordinates,  # Real-world coordinates of predicted person
-                mean_depth=mean_depth,  # Mean root depth of predicted person
-                save_path=f'./11_19_top_down_comb_{FRAME_INDEX}.png'
-            )
-
         # ipdb.set_trace()
         print(f"Plot saved successfully for {FRAME_INDEX}")
         print("Degrees offset was: ", theta_deg)

@@ -116,5 +116,6 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
 
     # Save the updated figure
     plt.tight_layout()
+    print("Saving to", save_path)
     plt.savefig(save_path, bbox_inches='tight')
     plt.close()

@@ -109,7 +109,7 @@ class PlotPredHuman():
             self.fig.text(0.01, classes_vert, "    ҉  " + c, ha='left', va='top', fontsize=8, color=class_id_to_color_map[i])
         self.text_frame = self.fig.text(0.99, 0.01, "Frame: N/A", ha="right", va="bottom", fontsize=10, color="black")
 
-    def update(self, robot_mm, pred_human_mm, gt_human_mm, agent_pose, human_pose, robot_detected_objects, human_detections, human_trajectory_view, objects_visible_to_human, rgb_robot, rgb_human, frame_num, text_labels=False):
+    def update(self, robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, human_detections, human_trajectory_view, objects_visible_to_human, rgb_robot, rgb_human, frame_num, text_labels=False):
         # initialize the mental model scatter points
         mm_points_x_robot, mm_points_y_robot, mm_points_z_robot = [], [], []
         mm_points_x_human, mm_points_y_human, mm_points_z_human = [], [], []
@@ -153,17 +153,18 @@ class PlotPredHuman():
         plot_colors_robot.append((0,0,0))
 
         # gt human pose
-        line = self.ax_scatter_human_true.axes.plot((human_pose[0][0], human_pose[0][0] + human_pose[-1][0]), (human_pose[0][1], human_pose[0][1] + human_pose[-1][1]), color=(0, 0, 1), alpha=1.0)
+        line = self.ax_scatter_human_true.axes.plot((gt_human_pose[0][0], gt_human_pose[0][0] + gt_human_pose[-1][0]), (gt_human_pose[0][1], gt_human_pose[0][1] + gt_human_pose[-1][1]), color=(0, 0, 1), alpha=1.0)
         self.pose_lines.append(line[0])
-        mm_points_x_human_true.append(human_pose[0][0])
-        mm_points_y_human_true.append(human_pose[0][1])
+        mm_points_x_human_true.append(gt_human_pose[0][0])
+        mm_points_y_human_true.append(gt_human_pose[0][1])
         plot_colors_human_true.append((0,0,1))
 
         # human pose
         for detected_human in human_detections[0]:
             human_pose = detected_human["pose"]
             human_direction = detected_human["direction"]
-            line = self.ax_scatter_robot.axes.plot((human_pose[0][0], human_pose[0][0] + human_direction[0]), (human_pose[0][1], human_pose[0][1] + human_direction[1]), color=(0, 0, 1), alpha=1.0)
+            print("!!!", human_pose)
+            line = self.ax_scatter_robot.axes.plot((human_pose[0], human_pose[0] + human_direction[0]), (human_pose[1], human_pose[1] + human_direction[1]), color=(0, 0, 1), alpha=1.0)
             self.pose_lines.append(line[0])
             # mm_points_x_robot.append(human_pose[0][0])
             # mm_points_y_robot.append(human_pose[0][1])
@@ -171,9 +172,9 @@ class PlotPredHuman():
             human_angle = np.arctan2(human_direction[1], human_direction[0])
             # draw V lines for the human's field of view
             fov = pred_human_mm.fov
-            line = self.ax_scatter_robot.axes.plot((human_pose[0][0], human_pose[0][0] + 5 * np.cos(human_angle - np.deg2rad(fov / 2))), (human_pose[0][1], human_pose[0][1] + 5 * np.sin(human_angle - np.deg2rad(fov / 2))), color=(0, 0, 1), alpha=0.2)
+            line = self.ax_scatter_robot.axes.plot((human_pose[0], human_pose[0] + 5 * np.cos(human_angle - np.deg2rad(fov / 2))), (human_pose[1], human_pose[1] + 5 * np.sin(human_angle - np.deg2rad(fov / 2))), color=(0, 0, 1), alpha=0.2)
             self.pose_lines.append(line[0])
-            line = self.ax_scatter_robot.axes.plot((human_pose[0][0], human_pose[0][0] + 5 * np.cos(human_angle + np.deg2rad(fov / 2))), (human_pose[0][1], human_pose[0][1] + 5 * np.sin(human_angle + np.deg2rad(fov / 2))), color=(0, 0, 1), alpha=0.2)
+            line = self.ax_scatter_robot.axes.plot((human_pose[0], human_pose[0] + 5 * np.cos(human_angle + np.deg2rad(fov / 2))), (human_pose[1], human_pose[1] + 5 * np.sin(human_angle + np.deg2rad(fov / 2))), color=(0, 0, 1), alpha=0.2)
             self.pose_lines.append(line[0])
 
         self.plot_scatter_robot.set_offsets(np.c_[mm_points_x_robot, mm_points_y_robot])

@@ -68,7 +68,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
 
     # run through frames and update mental models
     frames = sorted([int(x) for x in agent_poses.keys()])
-    for frame_id in frames:
+    for frame_id in frames[16:]:
         # load the frame files
         print(f"Processing frame {frame_id}")
         agent_pose = agent_poses[str(frame_id)]
@@ -87,12 +87,15 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
         if use_gt_semantics and os.path.exists(robot_preprocessed_file_path):
             with open(robot_preprocessed_file_path, "rb") as f:
                 (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
-            robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
+                agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location, direction)
             robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
             # if not using ground truth pose, get the human pose
-            if not use_gt_pose:
+            if not use_gt_pose and len(robot_human_detections) > 0:
                 print("NOT USING GT POSE")
-                
+                seg = robot_human_detections[0]["seg mask"]
+                robot_human_detections = robot_mm.get_human_poses_from_rgb_seg_depth_and_detected_humans(robot_rgb, seg, depth, robot_human_detections, agent_pose)
+                print(robot_human_detections[0]["pose"], robot_human_detections[0]["x"], robot_human_detections[0]["y"])
+            robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
             robot_mm.update_from_detected_objects(robot_detected_objects)
         else:  # otherwise process the frame now
             gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") if use_gt_semantics else None # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
@@ -113,7 +116,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
         # update the human pose
         if len(robot_human_detections[0]) > 0:  # if a human was seen, use the first one (can place this in a loop to support multiple humans, but we only have one human mental model in play)
             human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
-            human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]  # pose[0] is the base joint, using [east, north, vertical]
+            human_location = [human_pose[0], human_pose[1], human_pose[2]]  # pose[0] is the base joint, using [east, north, vertical]
             human_direction = pose.get_direction_from_pose(human_pose, use_gt_pose=use_gt_pose)  # get the direction that the human is facing
             print("DIRECTION!", human_direction)
             robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections

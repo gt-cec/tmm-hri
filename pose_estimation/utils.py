@@ -68,37 +68,3 @@ def get_agent_pose_per_frame(filepath) -> dict:
             forward /= np.linalg.norm(forward)
             poses[frame] = [hip_loc, left_shoulder_loc, right_shoulder_loc, left_hand_loc, right_hand_loc, left_foot, right_foot, head, forward]
     return poses
-
-
-def calculate_rw_coordinates(root_2d, root_depth, fov, img_res):
-    """
-    Calculate real-world (RW) coordinates of a joint using simple projection.
-
-    Args:
-        root_2d (tuple): The 2D coordinates of the joint (u, v) in pixels.
-        root_depth (float): Depth of the root joint in meters (Z).
-        fov (float): Field of view (horizontal) in degrees.
-        img_res (tuple): Resolution of the image as (width, height).
-
-    Returns:
-        tuple: Real-world coordinates (X, Y, Z).
-    """
-    # Extract image resolution
-    img_width, img_height = img_res
-    
-    # Principal point at the center of the image
-    cx, cy = img_width / 2, img_height / 2
-
-    # Compute focal length (in pixels)
-    f_x = img_width / (2 * math.tan(math.radians(fov) / 2))
-    f_y = f_x  # Assuming square pixels
-
-    # Extract 2D root position
-    u, v = root_2d[0], root_2d[1]
-
-    # Calculate real-world coordinates using pinhole projection
-    X = (u - cx) * root_depth / f_x
-    Y = (v - cy) * root_depth / f_y
-    Z = root_depth  # Depth remains unchanged
-
-    return X, Y, Z

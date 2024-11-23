@@ -4,6 +4,30 @@ import numpy as np
 import ast, math, os
 import cv2
 
+def compute_mean_depth(seg_map, depth_map, target_value):
+    """
+    Computes the mean depth of the target class in an image.
+    
+    Parameters:
+        seg_map_path (str): File path to the segmentation map (PNG).
+        depth_map_path (str): File path to the depth map (EXR).
+        target_value (list): RGB values identifying the target class in the segmentation map.
+    
+    Returns:
+        float: Mean depth value of the target class or None if no pixels are found.
+    """
+    # Identify pixels corresponding to the target value
+    pixel_locations = np.where(np.all(seg_map == target_value, axis=-1))
+
+    # Extract depth values at the identified pixel locations
+    depth_values = depth_map[pixel_locations]
+    
+    # Compute the mean depth
+    if len(depth_values) > 0:
+        return float(np.mean(depth_values))
+    else:
+        return None
+
 # get the x/y/z coordinates of an index from the pose array
 def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
     r = [float(pose_list[3 * index + 0]), float(pose_list[3 * index + 1]), float(pose_list[3 * index + 2])]
@@ -80,3 +104,37 @@ def get_map_boundaries(map_image_path:str) -> dict:
     map_image = np.transpose(map_image)
     map_image = np.flip(map_image, axis=1)
     return map_image
+
+# calculates the real world coordinates of a point
+def calculate_rw_coordinates(root_2d, root_depth, fov, img_res):
+    """
+    Calculate real-world (RW) coordinates of a joint using simple projection.
+
+    Args:
+        root_2d (tuple): The 2D coordinates of the joint (u, v) in pixels.
+        root_depth (float): Depth of the root joint in meters (Z).
+        fov (float): Field of view (horizontal) in degrees.
+        img_res (tuple): Resolution of the image as (width, height).
+
+    Returns:
+        tuple: Real-world coordinates (X, Y, Z).
+    """
+    # Extract image resolution
+    img_width, img_height = img_res
+    
+    # Principal point at the center of the image
+    cx, cy = img_width / 2, img_height / 2
+
+    # Compute focal length (in pixels)
+    f_x = img_width / (2 * math.tan(math.radians(fov) / 2))
+    f_y = f_x  # Assuming square pixels
+
+    # Extract 2D root position
+    u, v = root_2d[0], root_2d[1]
+
+    # Calculate real-world coordinates using pinhole projection
+    X = (u - cx) * root_depth / f_x
+    Y = (v - cy) * root_depth / f_y
+    Z = root_depth  # Depth remains unchanged
+
+    return X, Y, Z
