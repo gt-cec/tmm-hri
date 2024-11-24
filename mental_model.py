@@ -73,11 +73,16 @@ class MentalModel:
         return detected_objects, (detected_humans, depth_detected_humans, filtered_detected_humans)
 
     # get human poses
-    def get_human_poses_from_rgb_seg_depth_and_detected_humans(self, rgb, seg_map, depth_map, detected_humans, robot_pose):
+    def get_human_poses_from_rgb_seg_depth_and_detected_humans(self, rgb, depth_map, detected_humans, robot_pose):
         for i in range(len(detected_humans)):
-            theta_deg = self.poseDetector.get_heading_of_person(rgb, seg_map, depth_map, robot_pose)
-            print("THETA DEG!!", math.degrees(math.atan2(theta_deg[1], theta_deg[0])))
-            detected_humans[i]["pose"] = theta_deg
+            print("Robot pose:", robot_pose, [o["box"] for o in detected_humans])
+            predicted_location, predicted_heading, _ = self.poseDetector.get_heading_of_person(rgb, depth_map, detected_humans, robot_pose)
+            detected_humans[i]["pose"] = predicted_heading
+            detected_humans[i]["x"] = predicted_location[0]
+            detected_humans[i]["y"] = predicted_location[1]
+            detected_humans[i]["z"] = predicted_location[2]
+            print("THETA DEG!!", math.degrees(math.atan2(predicted_heading[1], predicted_heading[0])), predicted_location)
+
         return detected_humans
 
     # if you already have the detected objects through preprocessing, just update the DSG directly

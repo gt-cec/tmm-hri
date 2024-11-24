@@ -4,7 +4,7 @@ import numpy as np
 import ast, math, os
 import cv2
 
-def compute_mean_depth(seg_map, depth_map, target_value):
+def compute_mean_depth(seg_pixel_locations, depth_map):
     """
     Computes the mean depth of the target class in an image.
     
@@ -16,11 +16,9 @@ def compute_mean_depth(seg_map, depth_map, target_value):
     Returns:
         float: Mean depth value of the target class or None if no pixels are found.
     """
-    # Identify pixels corresponding to the target value
-    pixel_locations = np.where(np.all(seg_map == target_value, axis=-1))
 
     # Extract depth values at the identified pixel locations
-    depth_values = depth_map[pixel_locations]
+    depth_values = depth_map[seg_pixel_locations]
     
     # Compute the mean depth
     if len(depth_values) > 0:

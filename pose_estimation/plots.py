@@ -1,11 +1,11 @@
-import matplotlib
+import matplotlib.patches
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 
 def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, keypoint_index, keypoints_3d, 
                        GT_PERSON_LOC, GT_PERSON_HEADING, GT_ROBOT_LOC, GT_ROBOT_HEADING, 
-                       PRED_PERSON_LOC, predicted_heading, rw_coordinates, mean_depth, save_path=''):
+                       PRED_PERSON_LOC, predicted_heading, rw_coordinates, mean_depth, bboxes, save_path=''):
     """
     Combine 2D skeleton, 3D skeleton, and top-down view into a single figure.
     
@@ -36,6 +36,9 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
         ax1.scatter(x, y, color='red', s=50)
     ax1.set_title("2D Visualization")
     ax1.axis('off')
+    for bbox in bboxes:
+        rect = matplotlib.patches.Rectangle((bbox[0], bbox[1]), bbox[2]-bbox[0], bbox[3]-bbox[1], linewidth=1, edgecolor='r', facecolor='none')
+        ax1.add_patch(rect)
 
     # Plot 3D skeleton
     ax2 = fig.add_subplot(1, 4, 2, projection='3d')
