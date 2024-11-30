@@ -30,7 +30,7 @@ class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, 
 
 map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
 
-def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None):
+def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None):
     # validate episode_dir
     assert episode_dir is not None, "Missing episode_dir param"
     episode_name = episode_dir.split("/")[-1]
@@ -68,7 +68,7 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
 
     # run through frames and update mental models
     frames = sorted([int(x) for x in agent_poses.keys()])
-    for frame_id in frames[16:]:
+    for frame_id in frames:
         # load the frame files
         print(f"Processing frame {frame_id}")
         agent_pose = agent_poses[str(frame_id)]
@@ -85,21 +85,30 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
         # update the robot's mental model
         # if using ground truth, get the detected objects directly from the simulator files
         if use_gt_semantics and os.path.exists(robot_preprocessed_file_path):
+            print("  Using ground truth segmentation and pre-processed pkl:", robot_preprocessed_file_path)
             with open(robot_preprocessed_file_path, "rb") as f:
                 (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
-                agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location, direction)
+                for i in range(len(robot_human_detections)):
+                    robot_human_detections[i]["seg mask"] = np.where(robot_human_detections[i]["seg mask"] == 1)
+                agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location XY, direction)
             robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
-            # if not using ground truth pose, get the human pose
-            if not use_gt_pose and len(robot_human_detections) > 0:
-                print("NOT USING GT POSE")
-                robot_human_detections = robot_mm.get_human_poses_from_rgb_seg_depth_and_detected_humans(robot_rgb, depth, robot_human_detections, agent_pose)
-                print("POSE RESULT", robot_human_detections[0]["pose"], robot_human_detections[0]["x"], robot_human_detections[0]["y"])
-            robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
-            robot_mm.update_from_detected_objects(robot_detected_objects)
-        else:  # otherwise process the frame now
-            gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") if use_gt_semantics else None # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
-            gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB) if use_gt_semantics else None
+        elif use_gt_semantics:  # otherwise process the frame now
+            print("  Using ground truth segmentation, no pre-processed pkl was found, defaulting to segmentation network")
+            gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+            gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB)
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
+        else:
+            print("  Using object detection and segmentation network on RGB input.")
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
+
+        robot_mm.update_from_detected_objects(robot_detected_objects)
+
+        # if not using ground truth pose, get the human pose
+        if not use_gt_human_pose and len(robot_human_detections) > 0:
+            print("NOT USING GT HUMAN POSE, agent pose:", agent_pose, "human box", robot_human_detections[0]["box"])
+            robot_human_detections = robot_mm.get_human_poses_from_rgb_seg_depth_and_detected_humans(robot_rgb, depth, robot_human_detections, agent_pose, frame=frame_id)
+            print("RESULT FROM DETECT SHIT", robot_human_detections[0]["direction"])
+        robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
 
         # update the ground truth human mental model, requires the ground truth from the simulator
         if os.path.exists(human_preprocessed_file_path):
@@ -112,16 +121,16 @@ def main(agent_id="0", episode_dir=None, use_gt_pose=False, use_gt_semantics=Fal
         # if the human is visible to the robot, run the trajectory prediction
         objects_visible_to_human = []  # objects that the robot thinks the human can see
         human_trajectory_debug = None
-        # update the human pose
+        # update the human pose 
         if len(robot_human_detections[0]) > 0:  # if a human was seen, use the first one (can place this in a loop to support multiple humans, but we only have one human mental model in play)
-            human_pose = human_poses[str(frame_id)] if use_gt_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
-            human_location = [human_pose[0], human_pose[1], human_pose[2]]  # pose[0] is the base joint, using [east, north, vertical]
-            human_direction = pose.get_direction_from_pose(human_pose, use_gt_pose=use_gt_pose)  # get the direction that the human is facing
-            print("DIRECTION!", human_direction)
-            robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
-            robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
+            human_pose = human_poses[str(frame_id)] if use_gt_human_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
+            human_location = [human_pose[0], human_pose[1], human_pose[2]] # pose[0] is the base joint, using [east, north, vertical]
+            if use_gt_human_pose:
+                human_direction = pose.get_direction_from_pose(human_pose, use_gt_human_pose=use_gt_human_pose) # get the direction that the human is facing
+                robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
+                robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
             robot_human_detections[0][0]["visible objects"] = objects_visible_to_human  # update the human's visible objects in the detections
-
+            
             # if human has not been seen since before the last frame, predict where the human went since the last view
             if last_saw_human[0] is not None:
                 objects_visible_to_human = prediction.predict.get_objects_visible_from_last_seen(last_saw_human[1][:2], human_location[:2], map_boundaries, robot_mm.dsg, human_fov=gt_human_mm.fov)  # get the visible objects along that path
@@ -148,5 +157,5 @@ if __name__ == "__main__":
     agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
-    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_pose=False, use_gt_semantics=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
+    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
     print("Done.")

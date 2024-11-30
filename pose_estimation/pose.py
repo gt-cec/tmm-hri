@@ -2,9 +2,9 @@
 
 # get the forward direction of a character
 # pose: list of keypoints
-def get_direction_from_pose(pose:list, use_gt_pose=False) -> list:
+def get_direction_from_pose(pose:list, use_gt_human_pose=False) -> list:
     # get direction from ground truth pose
-    if use_gt_pose:
+    if use_gt_human_pose:
         return pose[-1]  # use the coordinate system (east, north, vertical)
     # get direction from observed pose
     else:

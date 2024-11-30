@@ -9,9 +9,8 @@ def compute_mean_depth(seg_pixel_locations, depth_map):
     Computes the mean depth of the target class in an image.
     
     Parameters:
-        seg_map_path (str): File path to the segmentation map (PNG).
-        depth_map_path (str): File path to the depth map (EXR).
-        target_value (list): RGB values identifying the target class in the segmentation map.
+        seg_pixel_locations
+        depth_map
     
     Returns:
         float: Mean depth value of the target class or None if no pixels are found.

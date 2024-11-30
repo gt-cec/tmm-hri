@@ -4,8 +4,7 @@ import cv2
 import numpy as np
 
 def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, keypoint_index, keypoints_3d, 
-                       GT_PERSON_LOC, GT_PERSON_HEADING, GT_ROBOT_LOC, GT_ROBOT_HEADING, 
-                       PRED_PERSON_LOC, predicted_heading, rw_coordinates, mean_depth, bboxes, save_path=''):
+                       robot_location, robot_heading, pred_person_location, predicted_heading, pred_human_relative_loc, mean_depth, bboxes, gt_person_location=None, gt_person_heading=None, save_path=''):
     """
     Combine 2D skeleton, 3D skeleton, and top-down view into a single figure.
     
@@ -37,7 +36,7 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
     ax1.set_title("2D Visualization")
     ax1.axis('off')
     for bbox in bboxes:
-        rect = matplotlib.patches.Rectangle((bbox[0], bbox[1]), bbox[2]-bbox[0], bbox[3]-bbox[1], linewidth=1, edgecolor='r', facecolor='none')
+        rect = matplotlib.patches.Rectangle((bbox[0][1], bbox[0][0]), bbox[1][1]-bbox[0][1], bbox[1][0]-bbox[0][0], linewidth=1, edgecolor='r', facecolor='none')
         ax1.add_patch(rect)
 
     # Plot 3D skeleton
@@ -61,19 +60,31 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
     ax2.grid()
 
     # Plot top-down view
+    all_x = []
+    all_y = []
+    
     ax3 = fig.add_subplot(1, 4, 3)
-    ax3.scatter(GT_PERSON_LOC[0], GT_PERSON_LOC[1], color="blue", label="GT Person", s=100, marker="o")
-    ax3.scatter(GT_ROBOT_LOC[0], GT_ROBOT_LOC[1], color="green", label="GT Robot", s=100, marker="s")
-    ax3.scatter(PRED_PERSON_LOC[0], PRED_PERSON_LOC[1], color="red", label="Predicted Person", s=100, marker="x")
+    if gt_person_location is not None:
+        ax3.scatter(gt_person_location[0], gt_person_location[1], color="blue", label="GT Person", s=100, marker="o")
+        ax3.arrow(gt_person_location[0], gt_person_location[1], 0.5 * gt_person_heading[0], 
+            0.5 * gt_person_heading[1], head_width=0.2, head_length=0.3, fc="blue", ec="blue", label="GT Person Heading")
+        all_x.append(gt_person_location[0])
+        all_y.append(gt_person_location[1])
+        
+    ax3.scatter(robot_location[0], robot_location[1], color="green", label="GT Robot", s=100, marker="s")
+    all_x.append(robot_location[0])
+    all_y.append(robot_location[1])
+
+    ax3.scatter(pred_person_location[0], pred_person_location[1], color="red", label="Predicted Person", s=100, marker="x")
+    all_x.append(pred_person_location[0])
+    all_y.append(pred_person_location[1])
+
     arrow_length = 0.5  # Scale for arrows
-    ax3.arrow(PRED_PERSON_LOC[0], PRED_PERSON_LOC[1], arrow_length * predicted_heading[0], 
+    
+    ax3.arrow(pred_person_location[0], pred_person_location[1], arrow_length * predicted_heading[0], 
               arrow_length * predicted_heading[1], head_width=0.2, head_length=0.3, fc="orange", ec="orange", label="Shoulder Heading")
-    ax3.arrow(GT_PERSON_LOC[0], GT_PERSON_LOC[1], 0.5 * GT_PERSON_HEADING[0], 
-              0.5 * GT_PERSON_HEADING[1], head_width=0.2, head_length=0.3, fc="blue", ec="blue", label="GT Person Heading")
-    ax3.arrow(GT_ROBOT_LOC[0], GT_ROBOT_LOC[1], 0.5 * GT_ROBOT_HEADING[0], 
-              0.5 * GT_ROBOT_HEADING[1], head_width=0.2, head_length=0.3, fc="green", ec="green", label="GT Robot Heading")
-    all_x = [GT_PERSON_LOC[0], GT_ROBOT_LOC[0], PRED_PERSON_LOC[0]]
-    all_y = [GT_PERSON_LOC[1], GT_ROBOT_LOC[1], PRED_PERSON_LOC[1]]
+    ax3.arrow(robot_location[0], robot_location[1], 0.5 * robot_heading[0], 
+              0.5 * robot_heading[1], head_width=0.2, head_length=0.3, fc="green", ec="green", label="GT Robot Heading")
     x_min, x_max = min(all_x) - 2, max(all_x) + 2
     y_min, y_max = min(all_y) - 2, max(all_y) + 2
     ax3.set_xlim(x_min, x_max)
@@ -84,11 +95,10 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
     ax3.legend()
     ax3.grid()
 
-
     # New Camera FOV Orientation plot
     ax4 = fig.add_subplot(1, 4, 4)  # Add a fourth subplot
     ax4.scatter(0, 0, color="black", label="Camera", s=100, marker="o")  # Camera at origin
-    ax4.scatter(rw_coordinates[0], mean_depth, color="red", label="Predicted Person", s=100, marker="x")  # Person
+    ax4.scatter(pred_human_relative_loc[0], mean_depth, color="red", label="Predicted Person", s=100, marker="x")  # Person
 
     # Calculate and plot original skeleton heading
     left_shoulder_idx = keypoint_index['left_shoulder']
@@ -105,7 +115,7 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
 
     # Plot original skeleton heading as an arrow from predicted person location
     arrow_length = 0.5  # Scale the arrow length for visibility
-    ax4.arrow(rw_coordinates[0], mean_depth, arrow_length * original_heading[0], arrow_length * original_heading[1],
+    ax4.arrow(pred_human_relative_loc[0], mean_depth, arrow_length * original_heading[0], arrow_length * original_heading[1],
               head_width=0.1, head_length=0.2, fc="orange", ec="orange", label="Original Skeleton Heading")
 
     # Plot styling

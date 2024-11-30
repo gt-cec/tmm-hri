@@ -35,7 +35,7 @@ def detect(image, classes, threshold=0.1, save_name=None):
         box[1] *= clip_to_orig_height
         box[2] *= clip_to_orig_width
         box[3] *= clip_to_orig_height
-        box = [[box[0], box[1]], [box[2], box[3]]]
+        box = [box[0], box[1], box[2], box[3]]
         label = int(label)
         objects.append({
             "class": class_list[label],

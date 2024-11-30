@@ -67,7 +67,10 @@ class PoseDetection:
         # estimate pose results for current image
         if isinstance(bounding_boxes, list):
             bounding_boxes = np.array(bounding_boxes)
-        bounding_boxes = bounding_boxes.flatten()
+        flattened_bounding_boxes = np.zeros((0, 4))
+        for i in range(bounding_boxes.shape[0]):
+            flattened_bounding_boxes = np.append(flattened_bounding_boxes, np.array([[bounding_boxes[i,0,1], bounding_boxes[i,0,0], bounding_boxes[i,1,1], bounding_boxes[i,1,0]]]), axis=0)
+        bounding_boxes = flattened_bounding_boxes[0]  # limited to one bounding box per frame at the moment for some reason
         pose_est_results = inference_topdown(pose_estimator, robot_rgb, [bounding_boxes])
         _track = _track_by_iou
 
@@ -174,7 +177,6 @@ class PoseDetection:
         robot_loc = robot_pose[0]
         robot_heading = robot_pose[1]
         # extract the boxes
-        print()
         seg_pixel_locations = detected_humans[0]["seg mask"]
 
         # get the pose lifting
@@ -230,7 +232,7 @@ class PoseDetection:
         default_y_axis = np.array([0, 1])
 
         # Predicted robot heading (assumes it's already normalized)
-        pred_robot_heading = robot_heading
+        pred_robot_heading = robot_heading[:2]  # cut off the z axis because people usually don't tilt their heads
 
         # Compute the angle (in radians) using the dot product
         dot_product = np.dot(default_y_axis, pred_robot_heading)
@@ -292,10 +294,9 @@ if __name__ == "__main__":
 
         # Perform pose inference
         rgb_path = f'{episode_dir}/0/Action_{FRAME_INDEX}_0_normal.png'  # Input file path (image or video)
-        frame = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
+        frame = cv2.imread(rgb_path)
         seg_map_path = f'{episode_dir}/0/Action_{FRAME_INDEX}_0_seg_class.png'
         depth_map_path = f'{episode_dir}/0/Action_{FRAME_INDEX}_0_depth.exr'
-        # seg_map = cv2.cvtColor(cv2.imread(seg_map_path), cv2.COLOR_BGR2RGB)
         seg_map = cv2.imread(seg_map_path)
         depth_map = cv2.imread(depth_map_path,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
 
@@ -309,18 +310,30 @@ if __name__ == "__main__":
 
         detected_humans.append({
             "seg mask": seg_pixel_locations,
-            "box": [col_min, row_min, col_max, row_max]
+            "box": np.array([[row_min, col_min], [row_max, col_max]])
         })
 
-        robot_loc = robot_poses[FRAME_INDEX_NONPAD][0]
+        robot_location = robot_poses[FRAME_INDEX_NONPAD][0]
         gt_person_loc = human_poses[FRAME_INDEX_NONPAD][0]
         gt_person_heading = human_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(human_poses[FRAME_INDEX_NONPAD][-1][:2])
         robot_heading = robot_poses[FRAME_INDEX_NONPAD][-1][:2] / np.linalg.norm(robot_poses[FRAME_INDEX_NONPAD][-1][:2])
 
-        pred_person_loc, predicted_heading, (rw_coordinates, mean_depth, first_person_3d, keypoints, pred_skeleton) = pose.get_heading_of_person(frame, depth_map, detected_humans, (robot_loc, robot_heading))
+        pred_person_location, predicted_heading, (pred_human_relative_loc, mean_depth, first_person_3d, keypoints, pred_skeleton) = pose.get_heading_of_person(frame, depth_map, detected_humans, (robot_location, robot_heading))
+
+        # save the outputs for frame 17
+        if FRAME_INDEX == "0017":
+            with open("test_demo_17.txt", "w") as f:
+                f.write(str(robot_location) + "\n")
+                f.write(str(detected_humans[0]["box"]) + "\n")
+                f.write(str(pred_person_location) + "\n")
+                f.write(str(predicted_heading) + "\n")
+            print("Wrote frame 17")
+
+        print("Frame", FRAME_INDEX, "Pred person loc", pred_person_location, "heading", predicted_heading)
+        print("Robot loc", robot_location)
 
         # if the ground truth data was supplied, visualize the heading
-        if gt_person_loc is not None and gt_person_heading is not None and robot_loc is not None and robot_heading is not None:
+        if robot_location is not None and robot_heading is not None:
             pose_estimation.plots.visualize_combined(
                 image=frame,  # Input image for 2D visualization
                 first_person_3d = first_person_3d,  # 
@@ -328,15 +341,15 @@ if __name__ == "__main__":
                 skeleton_links=skeleton_links,  # Skeleton links for visualization
                 keypoint_index=keypoint_index,  # Keypoint index mapping
                 keypoints_3d=pred_skeleton,  # Predicted 3D skeleton
-                GT_PERSON_LOC=gt_person_loc,  # Ground truth person location
-                GT_PERSON_HEADING=gt_person_heading,  # Ground truth person heading
-                GT_ROBOT_LOC=robot_loc,  # Ground truth robot location
-                GT_ROBOT_HEADING=robot_heading,  # Ground truth robot heading
-                PRED_PERSON_LOC=pred_person_loc,  # Predicted person location
+                robot_location=robot_location,  # Ground truth robot location
+                robot_heading=robot_heading,  # Ground truth robot heading
+                pred_person_location=pred_person_location,  # Predicted person location
                 predicted_heading=predicted_heading,  # Predicted person heading
-                rw_coordinates=rw_coordinates,  # Real-world coordinates of predicted person
+                pred_human_relative_loc=pred_human_relative_loc,  # Real-world coordinates of predicted person
                 mean_depth=mean_depth,  # Mean root depth of predicted person
                 bboxes=[o["box"] for o in detected_humans],
+                gt_person_location=gt_person_loc,  # Ground truth person location
+                gt_person_heading=gt_person_heading,  # Ground truth person heading
                 save_path=f'./11_19_top_down_comb_{FRAME_INDEX}.png'
             )
 

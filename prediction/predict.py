@@ -120,8 +120,12 @@ def __raycast__(map_boundaries, start, end):
     visible_points = []
     # check if the object is visible from the start location
     diff = numpy.array([end[0] - start[0], end[1] - start[1]])
-    direction = diff / numpy.linalg.norm(diff)
-    for i in range(1, int(numpy.linalg.norm(diff))):
+    diff_norm = numpy.linalg.norm(diff)
+    if diff_norm != 0:
+        direction = diff / diff_norm
+    else:
+        return False, visible_points
+    for i in range(1, int(diff_norm)):
         location = [int(start[0] + i * direction[0]), int(start[1] + i * direction[1])]
         if map_boundaries[location[0], location[1]] == 1:
             return False, visible_points
@@ -153,7 +157,11 @@ def __object_is_visible_from_point__(location, direction, obj_location, map_boun
     # check if the object is visible from the path segment
     direction = direction / numpy.linalg.norm(direction)  # normalize the direction
     object_location_wrt_agent_location = numpy.array([obj_location[0] - location[0], obj_location[1] - location[1]])
-    angle = math.acos(min(1.0, max(-1, numpy.dot(object_location_wrt_agent_location, direction) / (numpy.linalg.norm(object_location_wrt_agent_location) * numpy.linalg.norm(direction)))))
+    object_direction_wrt_agent_location = numpy.linalg.norm(object_location_wrt_agent_location)
+    if object_direction_wrt_agent_location != 0:
+        angle = math.acos(min(1.0, max(-1, numpy.dot(object_location_wrt_agent_location, direction) / (object_direction_wrt_agent_location * numpy.linalg.norm(direction)))))
+    else:
+        angle = 0
 
     # if the object is not in the field of view, it can't be visible
     if numpy.rad2deg(angle) > fov / 2:
