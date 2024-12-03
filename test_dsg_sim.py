@@ -92,22 +92,20 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
                     robot_human_detections[i]["seg mask"] = np.where(robot_human_detections[i]["seg mask"] == 1)
                 agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location XY, direction)
             robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
-        elif use_gt_semantics:  # otherwise process the frame now
+            robot_mm.update_from_detected_objects(robot_detected_objects)
+        elif use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
             print("  Using ground truth segmentation, no pre-processed pkl was found, defaulting to segmentation network")
             gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
             gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB)
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
-        else:
+        else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
 
-        robot_mm.update_from_detected_objects(robot_detected_objects)
-
         # if not using ground truth pose, get the human pose
         if not use_gt_human_pose and len(robot_human_detections) > 0:
-            print("NOT USING GT HUMAN POSE, agent pose:", agent_pose, "human box", robot_human_detections[0]["box"])
+            print("  Using pose detection on detected humans (*not* ground truth)")
             robot_human_detections = robot_mm.get_human_poses_from_rgb_seg_depth_and_detected_humans(robot_rgb, depth, robot_human_detections, agent_pose, frame=frame_id)
-            print("RESULT FROM DETECT SHIT", robot_human_detections[0]["direction"])
         robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
 
         # update the ground truth human mental model, requires the ground truth from the simulator
