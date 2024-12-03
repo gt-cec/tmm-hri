@@ -3,6 +3,7 @@
 !README.md
 !.gitignore
 !*.py
+!*.pth
 !requirements.txt
 
 # frames folder, not content
@@ -25,6 +26,7 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !segmentation/
 !detection/
 !pose_estimation/
+!pose_estimation/models/
 !prediction/
 !map_boundaries.png
 !visualization/

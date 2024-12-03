@@ -4,14 +4,14 @@ from dsg import dsg
 # from segmentation import scene_segmentation
 from detection import detect
 from segmentation import segment
-from pose_estimation import test_demo
+from pose_estimation import pose
 import math, numpy, utils
 
 class MentalModel:
     def __init__(self):
         self.dsg = dsg.DSG()
         self.fov = 40
-        self.poseDetector = test_demo.PoseDetection()
+        self.poseDetector = pose.PoseDetection()
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:
