@@ -42,7 +42,7 @@ def detect(image, classes, threshold=0.1, save_name=None):
             "class id": label,
             "confidence": round(score.item(), 3),
             "box": box,
-            "center": [(box[0][0] + box[0][1]) / 2, (box[1][0] + box[1][1]) / 2]
+            "center": [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
         })
         if label not in object_idx_by_class_id:
             object_idx_by_class_id[label] = [i]
@@ -145,8 +145,8 @@ def remove_objects_not_overlapping(objects_main, objects_check, overlap_threshol
 # gets the percent overlap of two boxes, generated with Claude
 def calculate_overlap_proportion(box1, box2):
     # unpack the coordinates
-    ((x1_1, y1_1), (x2_1, y2_1)) = box1
-    ((x1_2, y1_2), (x2_2, y2_2)) = box2
+    (x1_1, y1_1, x2_1, y2_1) = box1
+    (x1_2, y1_2, x2_2, y2_2) = box2
 
     # calculate the coordinates of the intersection rectangle
     x_left = max(x1_1, x1_2)

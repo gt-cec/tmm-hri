@@ -58,14 +58,10 @@ class PoseDetection:
         self.pose_lifter = init_model(self.pose_lifter_config, self.pose_lifter_checkpoint, device=self.device.lower())
         print("Completed initializing pose detector")
 
-    # This script takes as input a single image, 
-    # then outputs the mean depth of the person in the image
-    # This equates to root depth, which we use to adjust the rootrel 3D pose estimation in test_demo.
-    def process_one_image(self, args, robot_rgb, bounding_boxes, pose_estimator,
-                        pose_est_results_last, pose_est_results_list, next_id,
-                        pose_lifter, visualize_frame):
+    # runs pose estimation on an RGB image given bounding boxes
+    def process_one_image(self, args, robot_rgb, bounding_boxes, visualize_frame=False):
         """Visualize detected and predicted keypoints of one image."""
-
+        pose_est_results_last = []
         # estimate pose results for current image
         if isinstance(bounding_boxes, list):
             bounding_boxes = np.array(bounding_boxes)
@@ -73,14 +69,15 @@ class PoseDetection:
         for i in range(bounding_boxes.shape[0]):
             flattened_bounding_boxes = np.append(flattened_bounding_boxes, np.array([[bounding_boxes[i,0,1], bounding_boxes[i,0,0], bounding_boxes[i,1,1], bounding_boxes[i,1,0]]]), axis=0)
         bounding_boxes = flattened_bounding_boxes[0]  # limited to one bounding box per frame at the moment for some reason
-        pose_est_results = inference_topdown(pose_estimator, robot_rgb, [bounding_boxes])
+        pose_est_results = inference_topdown(self.pose_estimator, robot_rgb, [bounding_boxes])
         _track = _track_by_iou
 
-        pose_det_dataset_name = pose_estimator.dataset_meta['dataset_name']
+        pose_det_dataset_name = self.pose_estimator.dataset_meta['dataset_name']
         pose_est_results_converted = []
 
         # convert 2d pose estimation results into the format for pose-lifting
         # such as changing the keypoint order, flipping the keypoint, etc.
+        next_id = 0
         for i, data_sample in enumerate(pose_est_results):
             pred_instances = data_sample.pred_instances.cpu().numpy()
             keypoints = pred_instances.keypoints
@@ -125,17 +122,16 @@ class PoseDetection:
             pose_est_result_converted.pred_instances.set_field(keypoints, 'keypoints')
             pose_est_result_converted.set_field(pose_est_results[i].track_id, 'track_id')
             pose_est_results_converted.append(pose_est_result_converted)
-
-        pose_est_results_list.append(pose_est_results_converted.copy())
         
         # Second stage: Pose lifting
         # extract and pad input pose2d sequence
+        pose_est_results_list = [pose_est_results_converted.copy()]
         pose_seq_2d = extract_pose_sequence(pose_est_results_list, frame_idx=0, causal=False, seq_len=1, step=1)
 
         # conduct 2D-to-3D pose lifting
         norm_pose_2d = not self.disable_norm_pose_2d
         pose_lift_results = inference_pose_lifter_model(
-            pose_lifter,
+            self.pose_lifter,
             pose_seq_2d,
             image_size=visualize_frame.shape[:2],
             norm_pose_2d=norm_pose_2d)
@@ -186,11 +182,6 @@ class PoseDetection:
             args=self,
             robot_rgb=rgb,
             bounding_boxes=[o["box"] for o in detected_humans],
-            pose_estimator=self.pose_estimator,
-            pose_est_results_last=[],
-            pose_est_results_list=[],
-            next_id = 0,
-            pose_lifter=self.pose_lifter,
             visualize_frame=rgb)
 
         keypoints = [pose.pred_instances.keypoints[0] for pose in pred_2d_poses[0]]  # List of keypoints for all persons
@@ -216,7 +207,6 @@ class PoseDetection:
         IMG_RES = (512, 512)  # Resolution of the image
 
         rw_coordinates = utils.calculate_rw_coordinates(keypoints[0][0], mean_depth, FOV, IMG_RES)
-        # print("Real-world coordinates (X, Y, Z):", rw_coordinates)
         # Rotate robot heading CW by 90° to get perpendicular heading
         perpendicular_heading = np.array([heading_xy[1], -heading_xy[0]])
 
@@ -273,15 +263,15 @@ class PoseDetection:
         return pred_person_loc, predicted_heading, (rw_coordinates, mean_depth, first_person_3d, keypoints, pred_skeleton)
 
 
-# get the forward direction of a character
-# pose: list of keypoints
-def get_direction_from_pose(pose:list, use_gt_human_pose=False) -> list:
-    # get direction from ground truth pose
-    if use_gt_human_pose:
-        return pose[-1]  # use the coordinate system (east, north, vertical)
-    # get direction from observed pose
-    else:
-        return pose  # use the coordinate system (east, north, vertical)
+    # get the forward direction of a character
+    # pose: list of keypoints
+    def get_direction_from_pose(pose:list, use_gt_human_pose=False) -> list:
+        # get direction from ground truth pose
+        if use_gt_human_pose:
+            return pose[-1]  # use the coordinate system (east, north, vertical)
+        # get direction from observed pose
+        else:
+            return pose  # use the coordinate system (east, north, vertical)
 
 
 if __name__ == "__main__":

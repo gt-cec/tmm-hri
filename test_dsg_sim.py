@@ -155,5 +155,5 @@ if __name__ == "__main__":
     agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
-    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
+    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
     print("Done.")
