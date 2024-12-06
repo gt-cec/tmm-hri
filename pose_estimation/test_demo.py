@@ -121,7 +121,7 @@ class PoseDetection:
             pose_est_result_converted.set_field(pose_est_results[i].track_id, 'track_id')
             pose_est_results_converted.append(pose_est_result_converted)
 
-        pose_est_results_list.append(pose_est_results_converted.copy())
+        pose_est_results_list = [pose_est_results_converted.copy()]
         
         # Second stage: Pose lifting
         # extract and pad input pose2d sequence
@@ -308,7 +308,7 @@ if __name__ == "__main__":
 
         detected_humans.append({
             "seg mask": seg_pixel_locations,
-            "box": [col_min, row_min, col_max, row_max]
+            "box": [[col_min, row_min], [col_max, row_max]]
         })
 
         robot_location = robot_poses[FRAME_INDEX_NONPAD][0]

@@ -36,7 +36,9 @@ def visualize_combined(image, keypoints_2d, first_person_3d, skeleton_links, key
     ax1.set_title("2D Visualization")
     ax1.axis('off')
     for bbox in bboxes:
-        rect = matplotlib.patches.Rectangle((bbox[0][1], bbox[0][0]), bbox[1][1]-bbox[0][1], bbox[1][0]-bbox[0][0], linewidth=1, edgecolor='r', facecolor='none')
+        ax1.add_patch(matplotlib.patches.Circle((bbox[0]), 5))
+        ax1.add_patch(matplotlib.patches.Circle((bbox[1]), 5))
+        rect = matplotlib.patches.Rectangle((bbox[0][0], bbox[0][1]), bbox[1][0]-bbox[0][0], bbox[1][1]-bbox[0][1], linewidth=1, edgecolor='r', facecolor='none')
         ax1.add_patch(rect)
 
     # Plot 3D skeleton

@@ -32,6 +32,9 @@ def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
 
 # project visually observed objects from the agent's frame, sim fov = 1.0472rad = 120deg
 def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, seg_masks, depth, fov):
+    """
+    agent_pose: (robot location, robot heading)
+    """
     fov = np.deg2rad(fov)
     # get the location of the object in 3D space
     for i in range(seg_masks.shape[0]):  # for each observed object
@@ -44,7 +47,7 @@ def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_o
         vert_angle = (avg_row - seg_masks[i].shape[0] / 2) / seg_masks[i].shape[0] * fov  # get angle up/down from center
         x_pos_local = math.sin(horz_angle) * dist
         z_pos_local = math.sin(vert_angle) * dist
-        direction = agent_pose[-1]  # forward vector
+        direction = agent_pose[1]  # forward vector
         pose_horz_angle = math.atan2(direction[1], direction[0])  # for the pose, z is horz plan up (y), x is horz plan right (x)
         pose_vert_angle = math.asin(direction[2])  # for the pose, y is the vert plan up, so angle is y / 1
         x_pos_global = agent_pose[0][0] + math.cos(pose_horz_angle - horz_angle) * dist

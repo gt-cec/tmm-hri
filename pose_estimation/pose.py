@@ -181,7 +181,7 @@ class PoseDetection:
         pred_2d_poses, pred_3d_instances = self.process_one_image(
             args=self,
             robot_rgb=rgb,
-            bounding_boxes=[o["box"] for o in detected_humans],
+            bounding_boxes=[[[coordinate[1], coordinate[0]] for coordinate in o["box"]] for o in detected_humans],  # boxes from detector use x,y not row,col, change to row,col
             visualize_frame=rgb)
 
         keypoints = [pose.pred_instances.keypoints[0] for pose in pred_2d_poses[0]]  # List of keypoints for all persons
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
         detected_humans.append({
             "seg mask": seg_pixel_locations,
-            "box": np.array([[row_min, col_min], [row_max, col_max]])
+            "box": np.array([[col_min, row_min], [col_max, row_max]])
         })
 
         robot_location = robot_poses[FRAME_INDEX_NONPAD][0]
@@ -323,17 +323,7 @@ if __name__ == "__main__":
 
         pred_person_location, predicted_heading, (pred_human_relative_loc, mean_depth, first_person_3d, keypoints, pred_skeleton) = pose.get_heading_of_person(frame, depth_map, detected_humans, (robot_location, robot_heading))
 
-        # save the outputs for frame 17
-        if FRAME_INDEX == "0017":
-            with open("test_demo_17.txt", "w") as f:
-                f.write(str(robot_location) + "\n")
-                f.write(str(detected_humans[0]["box"]) + "\n")
-                f.write(str(pred_person_location) + "\n")
-                f.write(str(predicted_heading) + "\n")
-            print("Wrote frame 17")
-
         print("Frame", FRAME_INDEX, "Pred person loc", pred_person_location, "heading", predicted_heading)
-        print("Robot loc", robot_location)
 
         # if the ground truth data was supplied, visualize the heading
         if robot_location is not None and robot_heading is not None:

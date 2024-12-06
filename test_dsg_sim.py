@@ -51,10 +51,13 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
     # initialize the environment map, note that this is the "we know the starting layout" assumption
     initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
 
+    # initialize the models
+    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
+
     # initialize the mental models
-    robot_mm = mental_model.MentalModel()  # initialize the robot's mental model
-    gt_human_mm = mental_model.MentalModel()  # initialize the ground truth human's mental model
-    pred_human_mm = mental_model.MentalModel()  # initialize the predicted human's mental model
+    robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
+    gt_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the ground truth human's mental model
+    pred_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the predicted human's mental model
 
     robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
     gt_human_mm.initialize(objects=initial_objects, verbose=False)
@@ -71,7 +74,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
     for frame_id in frames:
         # load the frame files
         print(f"Processing frame {frame_id}")
-        agent_pose = agent_poses[str(frame_id)]
+        agent_pose = [agent_poses[str(frame_id)][0], agent_poses[str(frame_id)][-1]]
         robot_frame_prefix = f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}_0"
         robot_preprocessed_file_path = f"{robot_frame_prefix}_detected.pkl"
         human_frame_prefix = f"{episode_dir}/1/Action_{str(frame_id).zfill(4)}_0"
@@ -101,13 +104,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
         else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
-
-        # if not using ground truth pose, get the human pose
-        if not use_gt_human_pose and len(robot_human_detections) > 0:
-            print("  Using pose detection on detected humans (*not* ground truth)")
-            robot_human_detections = robot_mm.get_human_poses_from_rgb_seg_depth_and_detected_humans(robot_rgb, depth, robot_human_detections, agent_pose, frame=frame_id)
-        robot_human_detections = (robot_human_detections, None, None)  # rgb, depth, filtered
-
+        
         # update the ground truth human mental model, requires the ground truth from the simulator
         if os.path.exists(human_preprocessed_file_path):
             with open(human_preprocessed_file_path, "rb") as f:

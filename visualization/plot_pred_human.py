@@ -105,8 +105,8 @@ class PlotPredHuman():
         classes_vert = 0.90
         self.fig.text(0.01, classes_vert, "Classes:", ha='left', va='top', fontsize=10, color='black')
         for i, c in enumerate(classes):
-            classes_vert -= 0.025
-            self.fig.text(0.01, classes_vert, "    ҉  " + c, ha='left', va='top', fontsize=8, color=class_id_to_color_map[i])
+            classes_vert -= 0.018
+            self.fig.text(0.01, classes_vert, "    ҉  " + c, ha='left', va='top', fontsize=5, color=class_id_to_color_map[i])
         self.text_frame = self.fig.text(0.99, 0.01, "Frame: N/A", ha="right", va="bottom", fontsize=10, color="black")
 
         # lookups
@@ -205,7 +205,7 @@ class PlotPredHuman():
 
             # draw a rectangle bounding box
             bbox = [y for x in detected_human["box"] for y in x]
-            rect = matplotlib.patches.Rectangle((bbox[1], rgb_robot.shape[0] - bbox[0]), bbox[3] - bbox[1], bbox[0] - bbox[2], linewidth=2, edgecolor='r', facecolor='none')
+            rect = matplotlib.patches.Rectangle((bbox[0], rgb_robot.shape[1] - bbox[1]), bbox[2] - bbox[0], bbox[1] - bbox[3], linewidth=2, edgecolor='r', facecolor='none')
             rect.type = "bounding box"
             self.ax_rgb_robot.add_patch(rect)
 
@@ -219,6 +219,10 @@ class PlotPredHuman():
             for kp in detected_human["keypoints"]:
                 x, y = kp[:2]
                 self.ax_rgb_robot.scatter(x, rgb_robot.shape[0] - y, color='red', s=30)
+
+        # object detection
+        for object in robot_detected_objects:
+            rgb_robot[object["seg mask"]] = self.class_id_to_color_map[object["class id"]][:3] * 255
 
         self.plot_scatter_robot.set_offsets(np.c_[mm_points_x_robot, mm_points_y_robot])
         self.plot_scatter_robot.set_color(plot_colors_robot)

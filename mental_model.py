@@ -6,12 +6,13 @@ from detection import detect
 from segmentation import segment
 from pose_estimation import pose
 import math, numpy, utils
+import cv2
 
 class MentalModel:
-    def __init__(self):
+    def __init__(self, pose_detector=None):
         self.dsg = dsg.DSG()
         self.fov = 40
-        self.poseDetector = pose.PoseDetection()
+        self.pose_detector = pose.PoseDetection() if pose_detector is None else pose_detector
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:
@@ -40,43 +41,49 @@ class MentalModel:
             detected_objects, _ = detect.detect(rgb, classes, seg_threshold, seg_save_name)  # returns detected objects and an RGB debugging image (ignored)
 
             # get humans in the scene
-            detected_humans, _ = detect.detect(rgb, depth_classes, 0.1, None)
-            for i in range(len(detected_humans)):
-                detected_humans[i]["class"] = "human"
-                detected_humans[i]["class id"] = human_class_id
+            rgb_detected_humans, _ = detect.detect(rgb, depth_classes, 0.1, None)
+            for i in range(len(rgb_detected_humans)):
+                rgb_detected_humans[i]["class"] = "human"
+                rgb_detected_humans[i]["class id"] = human_class_id
 
             # get humans figures using depth, this is used to double check the humans
             depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
             depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
             for i in range(len(depth_detected_humans)):  # set all outputs to human
-                depth_detected_humans[i]["class"] = "character"
+                depth_detected_humans[i]["class"] = "human"
                 depth_detected_humans[i]["class id"] = human_class_id
 
             # remove the humans from the detected humans that do not overlap with the depth
-            filtered_detected_humans = detect.remove_objects_not_overlapping(detected_humans, depth_detected_humans, overlap_threshold=0.8, classes_to_filter=["human"])
-
+            detected_humans = detect.remove_objects_not_overlapping(rgb_detected_humans, depth_detected_humans, overlap_threshold=0.3, classes_to_filter=["human"])
+            
             # segment the objects
-            boxes = [o["box"] for o in detected_objects]
-            seg_masks = segment.segment(rgb, boxes)
+            object_boxes = [o["box"] for o in detected_objects]
+            human_boxes = [o["box"] for o in detected_humans]
+            seg_masks = segment.segment(rgb, object_boxes + human_boxes)
+            object_seg_masks = seg_masks[:len(object_boxes)]
+            human_seg_masks = seg_masks[len(object_boxes):]
+            for i in range(human_seg_masks.shape[0]):
+                detected_humans[i]["seg mask"] = human_seg_masks[i,:,:]
 
         # get the pose for each human
         detected_humans = self.get_human_poses_from_rgb_seg_depth_and_detected_humans(rgb, depth, detected_humans, pose)
-        print("DETECTED HUMANS", detected_humans)
 
         # make sure the seg mask and detected object dimensions match
-        assert len(detected_objects) == len(seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(seg_masks)}), one of these modules is misperforming."
-        detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, seg_masks, depth, self.fov)
+        assert len(detected_objects) == len(object_seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(object_seg_masks)}), one of these modules is misperforming."
+        detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, object_seg_masks, depth, self.fov)
         self.dsg.update(detected_objects)
 
-        return detected_objects, (detected_humans, depth_detected_humans, filtered_detected_humans)
+        return detected_objects, (detected_humans, rgb_detected_humans, depth_detected_humans)
 
     # get human poses
     def get_human_poses_from_rgb_seg_depth_and_detected_humans(self, rgb, depth_map, detected_humans, robot_pose, frame="0"):
-        predicted_location, predicted_heading, (pred_human_relative_loc, mean_depth, first_person_3d, keypoints, pred_skeleton) = self.poseDetector.get_heading_of_person(rgb, depth_map, detected_humans, robot_pose)
+        if len(detected_humans) == 0:
+            return detected_humans
+    
+        predicted_location, predicted_heading, (pred_human_relative_loc, mean_depth, first_person_3d, keypoints, pred_skeleton) = self.pose_detector.get_heading_of_person(rgb, depth_map, detected_humans, robot_pose)
         detected_humans[0]["pose"] = predicted_location
         detected_humans[0]["direction"] = predicted_heading
         detected_humans[0]["keypoints"] = keypoints[0]
-        print("Pred person loc", predicted_location, "heading", predicted_heading)
         return detected_humans
 
     # if you already have the detected objects through preprocessing, just update the DSG directly
