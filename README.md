@@ -1,28 +1,48 @@
 ## Team Mental Models for Human-Robot Interaction
 
-In this project we aim to enable a robot to estimate the belief state of other (human) agents in its surroundings. We limit our work to a household domain.
+In this project we aim to enable a robot to estimate the belief state of other (human) agents in its surroundings. We use a household domain for our experiments.
 
-### Setup
+### Installation
 
-We considered two simulation platforms for this task, Habitat-sim and VirtualHome. The simulators have the following tradeoffs:
+#### Requirements
 
-Photo realism: Habitat
-Physics realism: Habitat
-Robot controller realism: Habitat
-Dataset of human navigation in the household: Virtualhome
-Execution of high-level plans: Virtualhome (out-of-the-box)
-Simulation speed: Habitat
-Ease of development: Virtualhome
-
-We chose to go with VirtualHome for ease of development, however may later move to Habitat for a future project. The primary issue with Habitat was that, at the time, Habitat barely supported human agents with rearrangement capabilities, whereas that was an out-of-the-box feature for VirtualHome.
-
-### Requirements
-
-- VirtualHome, place in your project workspace, following the instructions on their GitHub
+- (If generating your own simulation) VirtualHome, place in your project workspace, following the instructions on their GitHub
 - PyTorch
 - MMPose
-- OwLv2
+- OWLv2
 - SAM2
+- numpy (at the time of writing, SAM2/PyTorch required numpy<2, we used 1.26.1)
+
+If you run into issues while installing these models, check the cross compatability of your PyTorch and Python versions. That caused us a lot of headaches.
+
+#### Detection Stack (OWL2 + SAM2)
+
+We are using OWLv2 for object detection, and SAM2 for object segmentation. OWLv2 allows for open vocabulary object detection which is useful for a household environment and outputs bounding boxes for the objects. SAM2 does not take in a class, only bounding boxes or known points/paths, returning the likely intended segmentation. From our test cases this pipeline of open vocab detection -> bounding boxes -> segmentation works very well.
+
+Install OWLv2 and SAM2 using their GitHub guides. We used a conda environment and Python 3.11, as some libraries did not support Python>3.11 at this time (Fall 2024).
+
+If you are using CUDA, remember to set the CUDA environment variables in your `.bashrc`:
+```
+export CUDA=12.2
+export CUDA_HOME=~/anaconda3/envs/sam2  # NOTE: replace this with your anaconda environment path, I named mine sam2 for no particular reason.
+export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
+export CUDA_PATH=$CUDA_HOME
+export LIBRARY_PATH=$CUDA_HOME/nvvm/lib64:$LIBRARY_PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/nvvm/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export NVCC=$CUDA_HOME/bin/nvcc
+export CFLAGS="-I$CUDA_HOME/include $CFLAGS"
+export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME
+export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
+```
+
+(As of Oct. 2024) If you are using a Mac, MPS is not supported well by PyTorch so we need to enable the fallback, add the following export to your terminal instance or add it to your `~/.zshrc`:
+
+`export PYTORCH_ENABLE_MPS_FALLBACK=1`
+
+#### Pose Stack (MMPose + RTMPose)
+
+We use the MMPose API with RTMPose to obtain 2D keypoints, and a pose lifter model we got from a colleague. Place the pose lifter model (in our case, `best_MPJPE_epoch_98.pth`) into `pose_estimation/models/`. You can 
 
 ### Running the simulator (VirtualHome)
 
@@ -51,39 +71,6 @@ To relay the data from the `./Output` folder to ROS, run:
 `python3 ros_interface.py`
 
 This relays the RGB camera, Depth camera, and Pose (location/orientation) of the robot agent for each recorded frame. The orientation is calculated using the vector normal to the plane defined by the hip location and each shoulder location.
-
-### Custom DSG: Segmentation (OWL2 + SAM2)
-
-I then tried a different pipeline of using OWL2 for object detection, and SAM2 for object segmentation. OWL2 allows for open vocabulary object detection which is useful for a household environment and outputs bounding boxes for the objects. SAM2 does not take in a class, only bounding boxes or known points/paths, returning the most likely intended object. From our test cases this pipeline of open vocab detection -> bounding boxes -> segmentation works very well, and to greater fidelity than SAM2. Additionally, the two models are maintained and recent.
-
-I installed OWL2 and SAM2 using their GitHub guides, to little issue.
-
-I did need to set a number of environment variables:
-```
-export CUDA=12.2
-export CUDA_HOME=~/anaconda3/envs/sam2  # NOTE: replace this with your anaconda environment path, I named mine sam2 for no particular reason.
-export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
-export CUDA_PATH=$CUDA_HOME
-export LIBRARY_PATH=$CUDA_HOME/nvvm/lib64:$LIBRARY_PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/nvvm/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-export NVCC=$CUDA_HOME/bin/nvcc
-export CFLAGS="-I$CUDA_HOME/include $CFLAGS"
-export CUDA_TOOLKIT_ROOT_DIR=$CUDA_HOME
-export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
-```
-
-### Pose Detection
-
-Niko recommended MotionBERT for 3D detection, which requires AlphaPose for 2D detection. I installed AlphaPose via their install guide, which required installing a few other packages. The only one that caused issues was halpecocotools, which could not be installed from `pip install halpecocotools` like the command line suggested, as I kept getting a `ModuleNotFound: 'numpy'` error. I was able to get it installed by git cloning the HalpeCOCOAPI repo and running `python setup.py build develop`. I fixed a quick error about `python not found` by changing halpecocotools' setup.py to use `python3` on the relevant cython line. Then, halpecocotools and AlphaPose installed without issue.
-
-Due to cython using np.float and numpy having depreciated that, I added `np.float = float` to demo_inference.py so cython wouldn't break. Will probably need that in the real code too.
-
-I had a circular import error with roi_align importing a cuda thing, and commented out that line. Similar issue with nms_cpu from detector.nms, which I was unable to resolve. It looks like an issue with their YOLOv3 detector, so tried using yolox instead. Yolox works. We should integrate this with Owlv2 once it works.
-
-I integrated with OWLv2 and got AlphaPose working, also cleared out much of the unneeded code so now it's a fairly lightweight library.
-
-Next is to use the AlphaPose keypoints for MotionBERT for 3D pose detection.
 
 ### Running the dynamic scene graph
 
