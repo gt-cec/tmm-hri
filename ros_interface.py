@@ -21,7 +21,7 @@ depth_pub = rospy.Publisher('/tesse/depth_cam/mono/image_raw', Image, queue_size
 #pose_test_pub = rospy.Publisher('/tf', Odometry, queue_size=100)
 
 # read the RGB/Depth/pose data for each frame and send it over ROS
-def relay_output(folder="./Output", char=0):
+def relay_output(folder="./episodes", char=0):
     if folder[-1] == "/":
         folder = folder[:-1]
 

@@ -4,6 +4,7 @@ from virtualhome.virtualhome.demo.utils_demo import *
 import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os
+import platform
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
@@ -11,11 +12,14 @@ random.seed(datetime.datetime.now().timestamp())
 ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with interaction positions, waterglass have problems with IDs sticking to the graph
 ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion, bench fails for a lot of placements
 
+os_name = platform.system()
+
 def move_agents(count, num_agents:int=2, output_folder:str="Episodes", file_name_prefix="Current"):
     state = "walk to object"
     completed_relocations = 0
     success = True
     while completed_relocations < count:  # run a state machine to relocate objects
+        print("STARTING NEXT RELOCATION", completed_relocations)
         if success:  # if last element was successful, reload the graph
             objects, surfaces, g = __get_objects_and_surfaces__()  # pull the latest objects, surfaces, and the environment graph
         if state == "walk to object":  # go to an object
@@ -98,7 +102,8 @@ def __remove_duplicate_items_from_graph__(g:dict):
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__():
     print("Sending kill command to simulator")
-    subprocess.run(["pkill", "-f", 'linux_exec.v2.3.0.x86_64'])
+    sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
+    subprocess.run(["pkill", "-f", sim_filename])
     print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
     comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
@@ -190,7 +195,7 @@ def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
 # run the agents
 if __name__ == "__main__":
     output_folder = "episodes"
-    episode_count = 25
+    episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
         episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
@@ -201,7 +206,7 @@ if __name__ == "__main__":
                 print("Removed previous run because it did not complete enough cycles:", num_complete)
             print("Starting", episode_name)
             instance_colormap = __reset_sim__()  # reload the simulator
-            res, num_complete = move_agents(30, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
+            res, num_complete = move_agents(500, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
             with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
                 f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
             print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)

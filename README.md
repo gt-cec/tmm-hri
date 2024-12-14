@@ -44,41 +44,87 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 
 We use the MMPose API with RTMPose to obtain 2D keypoints, and a pose lifter model we got from a colleague. Place the pose lifter model (in our case, `best_MPJPE_epoch_98.pth`) into `pose_estimation/models/`. You can 
 
-### Running the simulator (VirtualHome)
+#### Simulator (VirtualHome)
 
-The project is slightly modified from the VirtualHome API, and includes a few scripts to help run everything. We developed this using Ubuntu 20.04.
+Installing VirtualHome has two steps: download the Python API, and download the simulator executable. Let's start with the API.
 
-To launch the simulation setup:
+The VirtualHome instructions recommend using pip, however we found that the method does not work well. Instead, we can clone the VirtualHome repository into the project folder and access the API that way. Much easier, but use pip if you plan to install VirtualHome for multiple projects.
 
-`python3 launch_sim.py`
+`git clone https://github.com/xavierpuigf/virtualhome`
 
-This will launch the simulation for an example household, and spawn two agents.
+(As of December 13, 2024) We submitted a bug fix that has not yet been accepted. Open `virtualhome/virtualhome/simulation/__init__.py` and replace the file contents with:
 
-`python3 run_agent_both_simultaneous.py`
+```
+import glob
+import sys
+from sys import platform
 
-This will start moving the agents around as they relocate 10 random objects around the household, and will record/save their videos.
+# Needs to be fixed!
+original_path = sys.path[5]
+new_path = original_path + '/virtualhome/simulation'
+sys.path.append(new_path)
 
-Note: if the agent scripts ends prematurely and it appears to be because of a timeout, try decreasing the image resolution, decreasing the framerate, or increasing the processing time limit, all in `render_script(...)`.
+# if installed via pip
+try:
+    from unity_simulator.comm_unity import UnityCommunication
+    from unity_simulator import utils_viz
+
+# if running locally (cloned into the project repository)
+except ModuleNotFoundError:
+    from .simulation.unity_simulator.comm_unity import UnityCommunication
+    from .simulation.unity_simulator import utils_viz
+```
+
+Next, download the simulator executable of your choice from the VirtualHome documentation [here](https://github.com/xavierpuigf/virtualhome/tree/master?tab=readme-ov-file#download-unity-simulator). Place the executable anywhere.
+
+To run the simulator, first launch the executable, and then open a terminal and run one of the toy problem scripts (see the other simulation section).
+
+
+### Generating a simulation episode
+
+We evaluate on two toy problems: *Cleaning Up*, and *Parents Are Out*. They represent household scenarios in which our methods would be useful.
+
+Generating an episode for the scenario is rather straightforward:
+
+1. Launch the simulator executable you downloaded.
+
+2. Run the Python script we made for the scenario.
+
+Note: VirtualHome is prone to failing due to timeouts, we have found success by decreasing the image resolution, decreasing the framerate, or increasing the processing time limit, all done in the `render_script(...)` function call. In general. do not expect more than ~10-30 pick and places before it crashes.
 
 The video frames will be located in `./Output/human/{CHAR}`. Each frame has an RGB image and a depth image, and the folder contans a `pd_human.txt` file (pose data for each frame) and a script `ftaa_human.txt` of the character's actions.
 
-We have an example output here: https://drive.google.com/file/d/1ykeqP9-2GsfB0wvM3vzWyle9P7ZRXlhK/view?usp=sharing
+#### Cleaning Up
 
-Since we were unable to get VirtualHome to utilize our GPU, we recorded the simulation data and then relayed it to Hydra using ROS.
+Cleaning Up has two agents rearrange objects in the household over a long time duration. The changing environment allows for evaluation on maintaining estimates of belief states over time. Agents follow a state machine where they simultaneously go to a random object, pick it up, and place it on a different surface. Due to limitations of VirtualHome, we were unable to get episodes to last longer than ~30 pick/place cycles, or around 20 minutes of runtime.
 
-To relay the data from the `./Output` folder to ROS, run:
+After launching the simulator, generate an episode by running:
 
-`python3 ros_interface.py`
+`python3 sim_pick_and_place.py`
 
-This relays the RGB camera, Depth camera, and Pose (location/orientation) of the robot agent for each recorded frame. The orientation is calculated using the vector normal to the plane defined by the hip location and each shoulder location.
+This will start moving the agents around as they relocate random objects around the household, and will record/save their camera feeds.
 
-### Running the dynamic scene graph
+#### Parents Are Out
 
-(optional) to pre-generate the agent visuals at each frame, run:
+Parents Are Out aims to create a disparity between the human agent's belief state and the ground truth, such that the disparity can be leveraged for the downstream task of repairing the belief state. Agents are first exposed to a "clean" household where the objects are in their nominal locations. Objects are then randomly rearranged, and the human agent (with the robot following) briefly walk through the house. This episode is used for estimating the human's belief state such that the robot can later inform the human of objects they are not aware of.
 
-`./generate_pkl_processing.sh`
+After launching the simulator, generate an episode by running:
 
-This will delete the existing pkl files for an agent (edit the .sh file to change the agent files to delete) and generate new ones for each frame.
+`python3 sim_rearrangement_walkthrough.py`
+
+This will start moving the agents to follow the initialization and walkthrough, and will record/save their camera feeds.
+
+### Preprocessing a simulation episode
+
+The privileged information given in the episodes can be preprocessed for faster loading later on. Run:
+
+`python3 preprocess_sim_detection.py`
+
+The script pulls the ground truth object detection, segmentation masks, pose information, and projects the objects into their 3D locations. This is helpful for downstream ablation studies or model training where those operations are computationally expensive. The outputs are stored in `.pkl` files
+
+Running the dynamic scene graph tests on privileged information uses the preprocessed `.pkl` files to save time.
+
+### Constructing a DSG from a simulation episode
 
 To run the dynamic scene graph, run:
 
@@ -87,3 +133,11 @@ To run the dynamic scene graph, run:
 This will open each pkl file for an agent and run the DSG on it, outputting the result plots to `visualization_frames/`.
 
 You can convert the frames to a video using `frames_to_vid.sh`, which will save to `output.mp4`.
+
+### Replaying a simulation episode via ROS
+
+For testing the ROS system, we wrote a script to relay data from the `./episodes` folder to ROS. Run:
+
+`python3 ros_interface.py`
+
+This relays the RGB camera, Depth camera, and Pose (location/orientation) of the robot agent for each recorded frame. The orientation is calculated using the vector normal to the plane defined by the hip location and each shoulder location.
