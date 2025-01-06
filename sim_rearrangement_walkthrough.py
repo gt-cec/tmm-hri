@@ -5,72 +5,62 @@ import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os
 import platform
+import utils
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
 
-ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with interaction positions, waterglass have problems with IDs sticking to the graph
+ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with interaction positions, waterglass have problems with IDs sticking to the graph, slippers are on the ground
 ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion, bench fails for a lot of placements
 
 os_name = platform.system()
 
 def move_agents(count, num_agents:int=2, output_folder:str="Episodes", file_name_prefix="Current"):
-    state = "walk to object"
-    completed_relocations = 0
-    success = True
-    while completed_relocations < count:  # run a state machine to relocate objects
-        print("STARTING NEXT RELOCATION", completed_relocations)
-        if success:  # if last element was successful, reload the graph
-            objects, surfaces, g = __get_objects_and_surfaces__()  # pull the latest objects, surfaces, and the environment graph
-        if state == "walk to object":  # go to an object
-            target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects.values()), output_folder=output_folder, file_name_prefix=file_name_prefix)
-            if sim_failure:
-                return False, completed_relocations
-            if success:
-                state = "grab"
-            else:  # recovery: failed to walk to object, choose another object
-                pass
-        elif state == "grab":  # pick it up
-            success, sim_failure = __sim_action__("grab", object_ids=target_objects, output_folder=output_folder, file_name_prefix=file_name_prefix)
-            if sim_failure:
-                return False, completed_relocations
-            if success:
-                state = "walk to surface"
-            else:  # recovery: failed to grab object, choose another object
-                print("GRAB failed, recovering by putting and then going to another object")
-                state = "walk to object"
-        elif state == "walk to surface":  # go to an surface
-            target_surfaces, success, sim_failure = __sim_action__("walk", surface_ids=[], sample_source=list(surfaces.values()), output_folder=output_folder, file_name_prefix=file_name_prefix)
-            if sim_failure:
-                return False, completed_relocations
-            if success:
-                state = "put"
-            else:  # recovery: failed to reach surface, choose another surface
-                pass
-        elif state == "put":  # place it down
-            # get the objects are currently held
-            held_objects = {}
-            for obj in [x for x in g["edges"] if x["relation_type"] == "HOLDS_LH" or x["relation_type"] == "HOLDS_RH"]:
-                holder = obj["from_id"] - 1
-                if holder not in held_objects:
-                    held_objects[holder] = []
-                held_objects[holder].append(obj["to_id"])
-            objects_to_place = [objects[held_objects[char_id][0]] if char_id in held_objects and len(held_objects[char_id]) > 0 and held_objects[char_id][0] in objects else None for char_id in range(num_agents)]  # get the object dict corresponding to the first held object of each character
-            char_ids = [char_id for char_id in range(num_agents) if objects_to_place[char_id] != None]
-            # print("OBJECTS", objects_to_place, held_objects)
-            success, sim_failure = __sim_action__("put", object_ids=objects_to_place, surface_ids=target_surfaces, char_ids=char_ids, output_folder=output_folder, file_name_prefix=file_name_prefix)
-            if sim_failure:
-                return False, completed_relocations
-            if success:
-                completed_relocations += 1
-                state = "walk to object"
-            else:  # recovery: failed to place object, choose another surface
-                print("PUT failed, recovering by going to another surface")
-                state = "walk to surface"
-        else:
-            raise ValueError("INVALID STATE!")
-        # place down remaining
-    return True, completed_relocations
+    rooms = __get_rooms__()  # get the rooms
+    print(rooms)
+    num_traversed_rooms = 0
+    room_ids = list(rooms.keys())
+    # shuffle object locations
+    objects, surfaces, g = __get_objects_and_surfaces__()
+    original_g = g.copy()
+    new_g = {"nodes": [], "edges": []}
+    shuffled_object_ids = list(objects.keys())
+    random.shuffle(shuffled_object_ids)
+    for i in range(len(shuffled_object_ids)):
+        original_id = list(objects.keys())[i]
+        new_id = shuffled_object_ids[i]
+        # replace the edges
+        for i in range(len(original_g["edges"])):
+            if original_g["edges"][i]["from_id"] == original_id:
+                new_g["edges"].append({"from_id": new_id, "to_id": original_g["edges"][i]["to_id"], "relation_type": original_g["edges"][i]["relation_type"]})
+            if original_g["edges"][i]["to_id"] == original_id:
+                new_g["edges"].append({"to_id": new_id, "from_id": original_g["edges"][i]["from_id"], "relation_type": original_g["edges"][i]["relation_type"]})
+            
+        # replace the location
+        for i in range(len(original_g["nodes"])):
+            if original_g["nodes"][i]["id"] == original_id:
+                index_in_original = i
+        new_node = original_g["nodes"][index_in_original].copy()
+        new_node["id"] = new_id
+        new_node["obj_transform"]["position"] = original_g["nodes"][index_in_original]["obj_transform"]["position"]
+        g["nodes"].append(new_node)
+
+    # update the graph
+    print("Have new g!", g)
+    comm.expand_scene(g)
+    print("Shuffled graph!")
+
+    rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
+    for i in range(len(rooms)):
+        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
+        print("Moved to next room", rooms[room_ids[i]], "Target objects", target_objects)
+        if sim_failure:
+            return False, num_traversed_rooms
+        if success:
+            num_traversed_rooms += 1
+        else:  # recovery: failed to reach surface, choose another surface
+            pass
+    return True, num_traversed_rooms
 
 # remove duplicate items from the graph
 def __remove_duplicate_items_from_graph__(g:dict):
@@ -137,6 +127,16 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
         surface_ids = __sample_objects__(sample_source, num=len(char_ids))
     script = " | ".join([f"<char{agent_id}> [{action}]" + (f" <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})" if object_ids is not None and object_ids[agent_id] is not None else "") + (f" <{surface_ids[agent_id][1]}> ({surface_ids[agent_id][0]})" if surface_ids is not None and surface_ids[agent_id] is not None  else "") for agent_id in char_ids[0:]])
     print("Running script:", script)
+    success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
+    if surface_ids is None and action not in ["grab", "put"]:
+        return object_ids, success, sim_failure
+    elif object_ids is None and action not in ["grab", "put"]:
+        return surface_ids, success, sim_failure
+    return success, sim_failure
+
+# run an action on the simulator
+def __sim_script__(script:str, output_folder:str="Output/", file_name_prefix:str="script"):
+    sim_failure = False  # flag for the sim failing, requires restart
     while True:  # keep trying in case there are connection errors
         try:  # try running the script
             success, message = comm.render_script([script], image_synthesis=["normal", "seg_inst", "seg_class", "depth"], camera_mode=["FIRST_PERSON"], image_width=512, image_height=512, save_pose_data=True, recording=True, find_solution=False, processing_time_limit=10000, frame_rate=10, output_folder=output_folder, file_name_prefix=file_name_prefix)
@@ -156,11 +156,13 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
             sim_failure = True
             print(f"Unknown reason why script Fail: {str(e)}")
             break
-    if surface_ids is None and action not in ["grab", "put"]:
-        return object_ids, success, sim_failure
-    elif object_ids is None and action not in ["grab", "put"]:
-        return surface_ids, success, sim_failure
     return success, sim_failure
+
+# pull the rooms from the graph
+def __get_rooms__() -> dict:
+    _, g = comm.environment_graph()  # get the environment graph
+    rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
+    return rooms
 
 # pull the objects and surfaces from the graph
 def __get_objects_and_surfaces__() -> tuple[dict, dict, dict]:
@@ -168,6 +170,15 @@ def __get_objects_and_surfaces__() -> tuple[dict, dict, dict]:
     objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
     surfaces = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
     return objects, surfaces, g
+
+# pull the objects and surfaces from the graph in each room
+def __get_objects_in_rooms__() -> tuple[dict, dict, dict]:
+    _, g = comm.environment_graph() # get the environment graph
+    rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
+    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
+    edges = {x["from_id"] : x for x in g["edges"] if x["relation_type"] == "INSIDE" and x["from_id"] in objects and x["to_id"] in rooms}
+    objects_in_rooms = {room_id : [objects[edge["from_id"]] for edge in edges.values() if edge["to_id"] == room_id] for room_id in rooms}
+    return rooms, objects, objects_in_rooms, g
 
 # sample two items, choose items that are not close together so the agents don't get stuck 
 def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
@@ -181,7 +192,6 @@ def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
             obj_1_res = res[obj_1_idx]
             for obj_2_idx in range(obj_1_idx+1, num):
                 obj_2_res = res[obj_2_idx]
-                print("dist", obj_1_res, obj_2_res, (obj_1_res[2][0] - obj_2_res[2][0]), (obj_1_res[2][2] - obj_2_res[2][2]), (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2, max_dist ** 2)
                 if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < max_dist ** 2:
                     failed = True
                     break
@@ -199,16 +209,14 @@ if __name__ == "__main__":
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
         episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
-        num_complete = 0  # number of pick/place cycles completed
-        while num_complete < 5:  # repeat until the sim succeeds at 5+ cycles
-            if os.path.isdir(output_folder + "/" + episode_name):  # if the episode already exists, overwrite it (e.g., did not complete enough cycles)
-                subprocess.run(["rm", "-rf", output_folder + "/" + episode_name])
-                print("Removed previous run because it did not complete enough cycles:", num_complete)
-            print("Starting", episode_name)
-            instance_colormap = __reset_sim__()  # reload the simulator
-            res, num_complete = move_agents(500, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
-            with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
-                f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
-            print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
-    
+        if os.path.isdir(output_folder + "/" + episode_name):  # if the episode already exists, overwrite it (e.g., did not complete enough cycles)
+            subprocess.run(["rm", "-rf", output_folder + "/" + episode_name])
+            print("Removed previous run because it did not complete enough cycles:", num_complete)
+        print("Starting", episode_name)
+        instance_colormap = __reset_sim__()  # reload the simulator
+        res, num_complete = move_agents(500, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
+        with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
+            f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
+        print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
+
 print("Done!")

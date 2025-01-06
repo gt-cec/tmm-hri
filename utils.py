@@ -91,9 +91,13 @@ def get_ground_truth_semantic_colormap(episode_dir):
     with open(f"{episode_dir}/episode_info.txt") as f:
         return ast.literal_eval(f.readlines()[3])
 
-# euclidean distance
+# squared euclidean distance
 def dist_sq(a, b):
     return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + ((a[2] - b[2]) ** 2 if len(a) > 2 else 0)
+
+# euclidean distance
+def dist(a, b):
+    return math.sqrt(dist_sq(a, b))
 
 # read a map image and get boundaries
 def get_map_boundaries(map_image_path:str) -> dict:

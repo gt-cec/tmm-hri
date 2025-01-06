@@ -7,7 +7,8 @@ FRAMES_DIR="visualization_frames"
 # Change to the frames directory
 cd "$FRAMES_DIR" || exit
 # Get the list of existing frames sorted by their number
-existing_frames=($(ls frame_*.png | sort -V))
+# existing_frames=($(ls frame_*.png | sort -V))
+existing_frames=($(ls *.png | sort -V))
 # Iterate through the existing frames
 for frame in "${existing_frames[@]}"; do
     # Extract the frame number from the filename
