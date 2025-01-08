@@ -36,4 +36,8 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !frames_to_vid.sh
 !rearrange.json
 
+# virtualhome
+!virtualhome/
+!virtualhome/**
+
 __pycache__
