@@ -1,6 +1,6 @@
 from virtualhome.virtualhome.simulation.unity_simulator.comm_unity import UnityCommunication, UnityCommunicationException, UnityEngineException
 from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
-from virtualhome.virtualhome.demo.utils_demo import *
+# from virtualhome.virtualhome.demo.utils_demo import *
 import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os
@@ -23,7 +23,7 @@ def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Curren
     rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
     print("Rooms", rooms)
     for i in range(len(rooms)):
-        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
+        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder="../" + output_folder, file_name_prefix=file_name_prefix)
         print("Moved to next room", rooms[room_ids[i]], "Target objects", target_objects)
         if sim_failure:
             return False, num_traversed_rooms
@@ -177,14 +177,14 @@ def __get_rooms__() -> dict:
     return rooms
 
 # pull the objects and surfaces from the graph
-def __get_objects_and_surfaces__() -> tuple[dict, dict, dict]:
+def __get_objects_and_surfaces__():
     _, g = comm.environment_graph() # get the environment graph
     objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
     surfaces = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
     return objects, surfaces, g
 
 # pull the objects and surfaces from the graph in each room
-def __get_objects_in_rooms__() -> tuple[dict, dict, dict]:
+def __get_objects_in_rooms__():
     _, g = comm.environment_graph() # get the environment graph
     rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
     objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
-        episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
+        episode_name = f"episode_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}_agents_{num_agents}_run_{i}"
         print("Starting", episode_name)
         instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim

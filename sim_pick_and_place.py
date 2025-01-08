@@ -1,10 +1,10 @@
 from virtualhome.virtualhome.simulation.unity_simulator.comm_unity import UnityCommunication, UnityCommunicationException, UnityEngineException
 from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
-from virtualhome.virtualhome.demo.utils_demo import *
 import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os
 import platform
+import types
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
@@ -163,7 +163,7 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
     return success, sim_failure
 
 # pull the objects and surfaces from the graph
-def __get_objects_and_surfaces__() -> tuple[dict, dict, dict]:
+def __get_objects_and_surfaces__():
     _, g = comm.environment_graph() # get the environment graph
     objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
     surfaces = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
-        episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
+        episode_name = f"episode_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}_agents_{num_agents}_run_{i}"
         num_complete = 0  # number of pick/place cycles completed
         while num_complete < 5:  # repeat until the sim succeeds at 5+ cycles
             if os.path.isdir(output_folder + "/" + episode_name):  # if the episode already exists, overwrite it (e.g., did not complete enough cycles)
