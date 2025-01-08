@@ -15,42 +15,13 @@ ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion,
 
 os_name = platform.system()
 
-def move_agents(count, num_agents:int=2, output_folder:str="Episodes", file_name_prefix="Current"):
+def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
     rooms = __get_rooms__()  # get the rooms
     print(rooms)
     num_traversed_rooms = 0
     room_ids = list(rooms.keys())
-    # shuffle object locations
-    objects, surfaces, g = __get_objects_and_surfaces__()
-    original_g = g.copy()
-    new_g = {"nodes": [], "edges": []}
-    shuffled_object_ids = list(objects.keys())
-    random.shuffle(shuffled_object_ids)
-    for i in range(len(shuffled_object_ids)):
-        original_id = list(objects.keys())[i]
-        new_id = shuffled_object_ids[i]
-        # replace the edges
-        for i in range(len(original_g["edges"])):
-            if original_g["edges"][i]["from_id"] == original_id:
-                new_g["edges"].append({"from_id": new_id, "to_id": original_g["edges"][i]["to_id"], "relation_type": original_g["edges"][i]["relation_type"]})
-            if original_g["edges"][i]["to_id"] == original_id:
-                new_g["edges"].append({"to_id": new_id, "from_id": original_g["edges"][i]["from_id"], "relation_type": original_g["edges"][i]["relation_type"]})
-            
-        # replace the location
-        for i in range(len(original_g["nodes"])):
-            if original_g["nodes"][i]["id"] == original_id:
-                index_in_original = i
-        new_node = original_g["nodes"][index_in_original].copy()
-        new_node["id"] = new_id
-        new_node["obj_transform"]["position"] = original_g["nodes"][index_in_original]["obj_transform"]["position"]
-        g["nodes"].append(new_node)
-
-    # update the graph
-    print("Have new g!", g)
-    comm.expand_scene(g)
-    print("Shuffled graph!")
-
     rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
+    print("Rooms", rooms)
     for i in range(len(rooms)):
         target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
         print("Moved to next room", rooms[room_ids[i]], "Target objects", target_objects)
@@ -86,11 +57,49 @@ def __remove_duplicate_items_from_graph__(g:dict):
     for e in g["edges"]:  # keep edges between two valid nodes
         if e["from_id"] in used_ids and e["to_id"] in used_ids:
             new_graph["edges"].append(e)
-    comm.expand_scene(new_graph)
-    return
+    return new_graph
+
+def __randomize_object_locations__(g:dict) -> dict:
+    """
+    Randomizes the object locations in the graph.
+
+    Args:
+        g (dict): The graph to randomize the object locations in.
+
+    Returns:
+        dict: The graph with the object locations randomized.
+    """
+    positions_ids = []
+    positions_positions = []
+
+    # get the positions of the objects
+    for n in g["nodes"]:
+        if n["category"] != "Props":
+            continue
+        if ("GRABBABLE" not in n["properties"]):
+            continue
+        positions_ids.append(n["id"])
+        positions_positions.append(n["obj_transform"]["position"])
+
+    positions_ids_old = [x for x in positions_ids]
+
+    # shuffle the positions IDs
+    random.shuffle(positions_ids)
+
+    positions_mapping = {}
+    for i in range(len(positions_ids)):
+        positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i])
+    
+    # replace the positions
+    for i in range(len(g["nodes"])):
+        if g["nodes"][i]["id"] not in positions_mapping:
+            continue
+        using_position_of_id = positions_mapping[g["nodes"][i]["id"]][0]
+        g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
+    return g
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
-def __reset_sim__():
+def __reset_sim__(seed=42):
     print("Sending kill command to simulator")
     sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
     subprocess.run(["pkill", "-f", sim_filename])
@@ -105,7 +114,10 @@ def __reset_sim__():
             print("Waiting for simulator to accept a connection. Exception details:", str(e))
             time.sleep(3)
     
-    __remove_duplicate_items_from_graph__(comm.environment_graph()[1])
+    random.seed(seed)
+    new_graph = __remove_duplicate_items_from_graph__(comm.environment_graph()[1])  # remove items that are too far or duplicate IDs
+    new_graph = __randomize_object_locations__(new_graph)  # randomize the object locations
+    comm.expand_scene(new_graph)
     time.sleep(5)
     comm.add_character('Chars/Male2', initial_room='kitchen')  # add two agents this time
     comm.add_character('Chars/Male2', initial_room='kitchen')
@@ -204,19 +216,17 @@ def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
 
 # run the agents
 if __name__ == "__main__":
+    seed = 42
     output_folder = "episodes"
     episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
         episode_name = f"episode_{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}_agents_{num_agents}_run_{i}"
-        if os.path.isdir(output_folder + "/" + episode_name):  # if the episode already exists, overwrite it (e.g., did not complete enough cycles)
-            subprocess.run(["rm", "-rf", output_folder + "/" + episode_name])
-            print("Removed previous run because it did not complete enough cycles:", num_complete)
         print("Starting", episode_name)
-        instance_colormap = __reset_sim__()  # reload the simulator
-        res, num_complete = move_agents(500, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
+        instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
+        res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
         with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
-            f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
-        print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
+            f.write(f"{episode_name}\n{res}\n{instance_colormap}")
+        print("Completed agent run", episode_name, ": ended gracefully?", res)
 
 print("Done!")
