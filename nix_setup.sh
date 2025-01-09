@@ -27,8 +27,8 @@ fi
 echo "Checking if the tmm-hri environment exists..."
 if ! mamba env list | grep -q "tmm-hri"
 then
-    echo "    The tmm-hri environment does not exist. Creating it now..."
-    mamba create -y -v -v -n tmm-hri python=3.11 numpy==1.26.4 matplotlib
+    echo "    The tmm-hri environment does not exist. Creating it now... (this may take a few minutes)"
+    mamba create -y -v -n tmm-hri python=3.11 numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2
 else
     echo "    The tmm-hri environment already exists, remove it before running this script."
     exit
@@ -45,5 +45,3 @@ cd ../../
 
 # all done!
 echo "Installation complete! Enjoy!"
-
-# opencv easydict transformers conda-forge::sam-2
