@@ -64,6 +64,8 @@ class MentalModel:
             human_seg_masks = seg_masks[len(object_boxes):]
             for i in range(human_seg_masks.shape[0]):
                 detected_humans[i]["seg mask"] = human_seg_masks[i,:,:]
+            for i in range(object_seg_masks.shape[0]):
+                detected_objects[i]["seg mask"] = object_seg_masks[i,:,:]
 
         # get the pose for each human
         detected_humans = self.get_human_poses_from_rgb_seg_depth_and_detected_humans(rgb, depth, detected_humans, pose)

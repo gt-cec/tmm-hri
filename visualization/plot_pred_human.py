@@ -184,6 +184,8 @@ class PlotPredHuman():
 
         # human pose
         for detected_human in human_detections[0]:
+            if "pose" not in detected_human:
+                continue
             human_pose = detected_human["pose"]
             human_direction = detected_human["direction"]
             line = self.ax_scatter_robot.axes.plot((human_pose[0], human_pose[0] + human_direction[0]), (human_pose[1], human_pose[1] + human_direction[1]), color=(0, 0, 1), alpha=1.0)

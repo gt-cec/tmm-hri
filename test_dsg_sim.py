@@ -24,10 +24,6 @@ plt.rcParams['font.family'] = 'Roboto'  # you probably need to install Roboto --
 matplotlib.use('Agg')
 plt.ioff()
 
-classes = sorted(["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass'])
-class_to_class_id = {o : i for i, o in enumerate(classes)}
-class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
-
 map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
 
 def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None):
@@ -41,6 +37,11 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
     # get the ground truth color map, used for ground truth semantics and to initialize the scene
     with open(f"{episode_dir}/episode_info.txt") as f:
         gt_semantic_colormap = ast.literal_eval(f.readlines()[3])
+        classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass']
+        classes = sorted(list(set([gt_semantic_colormap[k][1] for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes])) + ["human"])  # get the classes that are in the colormap
+        print(classes)
+        class_to_class_id = {o : i for i, o in enumerate(classes)}
+        class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
 
     # get the agent poses
     print("Reading agent poses", f"{episode_dir}/{agent_id}/pd_{episode_name}.txt")
@@ -146,7 +147,8 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
 
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
-    episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
+    # episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
+    episode_name = "episode"
     episode_dir = f"episodes/{episode_name}"
     # get the agent ID
     agent_id = "0"
