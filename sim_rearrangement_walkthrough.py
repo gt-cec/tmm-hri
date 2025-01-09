@@ -134,11 +134,14 @@ def __reset_sim__(seed=42):
 def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surface_ids:list=None, sample_source:str=None, output_folder:str="Output/", file_name_prefix:str="script"):
     sim_failure = False  # flag for the sim failing, requires restart
     if sample_source is not None and object_ids == []:  # if sampling the objects
-        object_ids = __sample_objects__(sample_source, num=len(char_ids))
+        object_ids = __sample_objects__(sample_source, num=len(char_ids), min_dist=5)
     elif sample_source is not None and surface_ids == []:  # if sampling the surfaces
         surface_ids = __sample_objects__(sample_source, num=len(char_ids))
     script = " | ".join([f"<char{agent_id}> [{action}]" + (f" <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})" if object_ids is not None and object_ids[agent_id] is not None else "") + (f" <{surface_ids[agent_id][1]}> ({surface_ids[agent_id][0]})" if surface_ids is not None and surface_ids[agent_id] is not None  else "") for agent_id in char_ids[0:]])
     print("Running script:", script)
+    success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
+    print("Make character 1 look at character 2")
+    script = f"<char0> [lookat] {char_ids[1]}"
     success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
     if surface_ids is None and action not in ["grab", "put"]:
         return object_ids, success, sim_failure
@@ -193,7 +196,7 @@ def __get_objects_in_rooms__():
     return rooms, objects, objects_in_rooms, g
 
 # sample two items, choose items that are not close together so the agents don't get stuck 
-def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
+def __sample_objects__(sample_source:list, num:int=2, min_dist:float=3):
     # bit of a hack, just resample until we get objects that aren't very close to each other
     # to optimize: start with a sample, and then resample objects that are close to each other
     escape_limit = 1000  # after 1000 attempts we know something is dearly wrong
@@ -204,7 +207,7 @@ def __sample_objects__(sample_source:list, num:int=2, max_dist:float=3):
             obj_1_res = res[obj_1_idx]
             for obj_2_idx in range(obj_1_idx+1, num):
                 obj_2_res = res[obj_2_idx]
-                if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < max_dist ** 2:
+                if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < min_dist ** 2:
                     failed = True
                     break
             if failed:
