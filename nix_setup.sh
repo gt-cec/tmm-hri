@@ -33,22 +33,17 @@ else
     echo "    The tmm-hri environment already exists, moving on."
 fi
 
-# activate the tmm-hri environment
-echo "Activating the tmm-hri environment..."
-mamba init
-mamba activate tmm-hri
-
 # install the mamba packages
-echo "Installing the Mamba packages..."
-mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2 -y
+echo "Installing the Mamba packages to the tmm-hri environment..."
+mamba run -n tmm-hri mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2 -y
 
 # install mmpose
 echo "Installing mmpose..."
 cd pose_detection
 git clone https://github.com/open-mmlab/mmpose.git
 cd mmpose
-python3.11 -m pip install mmcv==2.1.0 mmdet
-python3.11 -m pip install -v -e .`
+mamba run -n tmm-hri python3.11 -m pip install mmcv==2.1.0 mmdet
+mamba run -n tmm-hri python3.11 -m pip install -v -e .`
 cd ../../
 
 # all done!
