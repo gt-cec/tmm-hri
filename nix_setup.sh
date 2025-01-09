@@ -1,5 +1,17 @@
 # installs the requisite packages using Mamba
 
+echo "Welcome! This tool will create a Mamba environment and install the requisite packages for the TMM-HRI project."
+
+# check if platform is Linux or MacOS
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "Linux detected."
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "MacOS detected."
+else
+    echo "Unsupported platform, this script is for a Linux or MacOS system. See the README for the full installation guide."
+    exit
+fi
+
 # check if Mamba is installed
 echo "Checking if Mamba is installed..."
 if ! command -v mamba &> /dev/null
@@ -12,7 +24,7 @@ fi
 if ! mamba env list | grep -q "tmm-hri"
 then
     echo "The tmm-hri environment does not exist. Creating it now..."
-    mamba env create tmm-hri python=3.11
+    mamba env create -n tmm-hri python=3.11
 fi
 
 # activate the tmm-hri environment
