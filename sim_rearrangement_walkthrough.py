@@ -100,10 +100,10 @@ def __randomize_object_locations__(g:dict) -> dict:
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__(seed=42):
-    print("Sending kill command to simulator")
-    sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
-    subprocess.run(["pkill", "-f", sim_filename])
-    print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
+    # print("Sending kill command to simulator")
+    # sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
+    # subprocess.run(["pkill", "-f", sim_filename])
+    # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
     comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect

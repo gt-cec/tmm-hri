@@ -1,7 +1,6 @@
 from virtualhome.virtualhome.simulation.unity_simulator.comm_unity import UnityCommunication, UnityCommunicationException, UnityEngineException
 from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
 import glob
-from PIL import Image
 import random, threading, time, subprocess, datetime, os
 import platform
 import types
@@ -101,10 +100,10 @@ def __remove_duplicate_items_from_graph__(g:dict):
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__():
-    print("Sending kill command to simulator")
-    sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
-    subprocess.run(["pkill", "-f", sim_filename])
-    print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
+    # print("Sending kill command to simulator")
+    # sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
+    # subprocess.run(["pkill", "-f", sim_filename])
+    # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
     comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
