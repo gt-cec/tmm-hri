@@ -35,11 +35,11 @@ fi
 
 # activate the tmm-hri environment
 echo "Activating the tmm-hri environment..."
-mamba activate tmm-hri
+conda activate tmm-hri
 
 # install the mamba packages
 echo "Installing the Mamba packages..."
-mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2
+mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2 -y
 
 # install mmpose
 echo "Installing mmpose..."
