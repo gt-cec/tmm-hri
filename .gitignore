@@ -5,6 +5,7 @@
 !*.py
 !*.pth
 !requirements.txt
+!*.sh
 
 # frames folder, not content
 !visualization_frames/

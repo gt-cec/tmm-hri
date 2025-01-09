@@ -128,7 +128,7 @@ Running the dynamic scene graph tests on privileged information uses the preproc
 
 To run the dynamic scene graph, run:
 
-`python3.12 test_dsg_sim.py`
+`python3.11 test_dsg_sim.py`
 
 This will open each pkl file for an agent and run the DSG on it, outputting the result plots to `visualization_frames/`.
 
