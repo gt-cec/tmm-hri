@@ -36,7 +36,7 @@ fi
 
 # install mmpose
 echo "Installing mmpose..."
-cd pose_detection
+cd pose_estimation
 git clone https://github.com/open-mmlab/mmpose.git
 cd mmpose
 mamba run -n tmm-hri python3.11 -m pip install mmcv==2.1.0 mmdet
