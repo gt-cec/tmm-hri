@@ -5,9 +5,9 @@ echo "Welcome! This tool will create a Mamba environment and install the requisi
 # check if platform is Linux or MacOS
 echo "Checking platform..."
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    echo "    Linux detected."
+    echo "    Linux detected, moving on."
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "    MacOS detected."
+    echo "    MacOS detected, moving on."
 else
     echo "!! Unsupported platform, this script is for a Linux or MacOS system. See the README for the full installation guide."
     exit
@@ -35,7 +35,7 @@ fi
 
 # install the mamba packages
 echo "Installing the Mamba packages to the tmm-hri environment..."
-mamba run -n tmm-hri mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2 -y
+mamba run -n -v tmm-hri mamba install numpy==1.26.4 matplotlib opencv easydict transformers conda-forge::sam-2 -y
 
 # install mmpose
 echo "Installing mmpose..."
