@@ -208,7 +208,7 @@ if __name__ == "__main__":
             instance_colormap = __reset_sim__()  # reload the simulator
             res, num_complete = move_agents(500, num_agents=num_agents, output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
             with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
-                f.write(f"{episode_name}\n{num_complete}\n{res}\n{instance_colormap}")
+                f.write(f"{episode_name}\n{num_complete}\n{res}\n\n{instance_colormap}")
             print("Completed agent run", episode_name, ": ended gracefully?", res, "Completed", num_complete)
     
 print("Done!")

@@ -8,18 +8,32 @@ In this project we aim to enable a robot to estimate the belief state of other (
 
 - (If generating your own simulation) VirtualHome, place in your project workspace, following the instructions on their GitHub
 - PyTorch
-- MMPose
+- MMPose (and by extension, MMEngine and MMCV)
 - OWLv2
 - SAM2
 - numpy (at the time of writing, SAM2/PyTorch required numpy<2, we used 1.26.1)
 
 If you run into issues while installing these models, check the cross compatability of your PyTorch and Python versions. That caused us a lot of headaches.
 
+#### Mamba Environment
+
+Because a recent update of setuptools broke many packages with Python 3.12+, we use Python 3.11 for this project. Therefore we recommend using a mamba environment as Python 3.11 is a few years old at this point.
+
+`mamba env create -n tmm-hri python=3.11`
+
+`mamba activate tmm-hri`
+
+Then, install the usual suite:
+
+`mamba install numpy==1.26.4 matplotlib opencv easydict transformers`
+
 #### Detection Stack (OWL2 + SAM2)
 
 We are using OWLv2 for object detection, and SAM2 for object segmentation. OWLv2 allows for open vocabulary object detection which is useful for a household environment and outputs bounding boxes for the objects. SAM2 does not take in a class, only bounding boxes or known points/paths, returning the likely intended segmentation. From our test cases this pipeline of open vocab detection -> bounding boxes -> segmentation works very well.
 
-Install OWLv2 and SAM2 using their GitHub guides. We used a conda environment and Python 3.11, as some libraries did not support Python>3.11 at this time (Fall 2024).
+Install OWLv2 and SAM2 using their GitHub guides. Again, we used a mamba environment and Python 3.11 as some libraries did not support Python>3.11 at this time (Fall 2024). Alternatively, if you are using a Mamba environment you can install SAM2 from the `conda-forge` repository:
+
+`mamba install conda-forge::sam-2`
 
 If you are using CUDA, remember to set the CUDA environment variables in your `.bashrc`:
 ```
@@ -42,42 +56,28 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$LD_LIBRARY_PATH
 
 #### Pose Stack (MMPose + RTMPose)
 
-We use the MMPose API with RTMPose to obtain 2D keypoints, and a pose lifter model we got from a colleague. Place the pose lifter model (in our case, `best_MPJPE_epoch_98.pth`) into `pose_estimation/models/`. You can 
+We use the MMPose API with RTMPose to obtain 2D keypoints, and a pose lifter model we got from a colleague. Place the pose lifter model (in our case, `best_MPJPE_epoch_98.pth`) into `pose_estimation/models/`.
+
+Use the following steps to install MMPose. MMCV requires 2.1.0 for no reason other than one of MMPose's pose detection models has not had its dependency list updated.
+
+`cd pose_estimation`
+`git clone https://github.com/open-mmlab/mmpose.git`
+`cd mmpose`
+`python3.11 -m pip install mmcv==2.1.0 mmdet`
+`python3.11 -m pip install -r requirements.txt`
+`python3.11 -m pip install -v -e .`
+
+Now head back to the root directory:
+
+`cd ../../`
 
 #### Simulator (VirtualHome)
 
-Installing VirtualHome has two steps: download the Python API, and download the simulator executable. Let's start with the API.
+VirtualHome has two components: an executable that runs a Unity player for the simulation, and a Python API that is used to interact with the simulator. Download the simulator executable corresponding to your platform from the VirtualHome documentation [here](https://github.com/xavierpuigf/virtualhome/tree/master?tab=readme-ov-file#download-unity-simulator). Place the executable in the project directory (e.g., `tmm-hri/linux_exec_v2.3.0.app`).
 
-The VirtualHome instructions recommend using pip, however we found that the method does not work well. Instead, we can clone the VirtualHome repository into the project folder and access the API that way. Much easier, but use pip if you plan to install VirtualHome for multiple projects.
+We had to make some minor modifications to the VirtualHome API for it to work, so we include a stripped-down fork of the API in this project repo. VirtualHome is scarcely maintained so this API should stay relevant for the foreseeable future.
 
-`git clone https://github.com/xavierpuigf/virtualhome`
-
-(As of December 13, 2024) We submitted a bug fix that has not yet been accepted. Open `virtualhome/virtualhome/simulation/__init__.py` and replace the file contents with:
-
-```
-import glob
-import sys
-from sys import platform
-
-# Needs to be fixed!
-original_path = sys.path[5]
-new_path = original_path + '/virtualhome/simulation'
-sys.path.append(new_path)
-
-# if installed via pip
-try:
-    from unity_simulator.comm_unity import UnityCommunication
-    from unity_simulator import utils_viz
-
-# if running locally (cloned into the project repository)
-except ModuleNotFoundError:
-    from .simulation.unity_simulator.comm_unity import UnityCommunication
-    from .simulation.unity_simulator import utils_viz
-```
-
-Next, download the simulator executable of your choice from the VirtualHome documentation [here](https://github.com/xavierpuigf/virtualhome/tree/master?tab=readme-ov-file#download-unity-simulator). Place the executable anywhere.
-
-To run the simulator, first launch the executable, and then open a terminal and run one of the toy problem scripts (see the other simulation section).
+To run the simulator, first launch the executable, and then open a terminal and run one of the toy problem scripts (see the simulation section).
 
 
 ### Generating a simulation episode
