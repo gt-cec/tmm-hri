@@ -35,7 +35,8 @@ fi
 
 # activate the tmm-hri environment
 echo "Activating the tmm-hri environment..."
-conda activate tmm-hri
+mamba init
+mamba activate tmm-hri
 
 # install the mamba packages
 echo "Installing the Mamba packages..."
