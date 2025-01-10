@@ -10,9 +10,21 @@ from mmpose.apis import (_track_by_iou,
                          inference_pose_lifter_model, inference_topdown,
                          init_model)
 from mmpose.structures import (PoseDataSample, merge_data_samples)
-import os
+import os, torch, sys
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr files (depth)
+
+# set device to cuda if cuda is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print("Using CUDA")
+# otherwise check if on macos
+elif sys.platform == "darwin":
+    device = "mps"
+    print("Using MPS")
+else:
+    device = "cpu"
+    print("Using CPU")
 
 """
 Processing depth but stored as rgba.
@@ -42,7 +54,7 @@ class PoseDetection:
         self.pose_estimator_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.pth'  # Pose estimator checkpoint file path
         self.pose_lifter_config = './pose_estimation/models/video-pose-lift_tcn-27frm-supv_8xb128-160e_fit3d.py'  # Pose lifter configuration file path
         self.pose_lifter_checkpoint = './pose_estimation/models/best_MPJPE_epoch_98.pth'
-        self.device = 'mps'  # Device to use (e.g., 'cuda' or 'cpu')
+        self.device = device  # Device to use (e.g., 'cuda' or 'cpu')
         self.det_cat_id = 0  # Category ID for detection (e.g., person)
         self.bbox_thr = 0.5  # Bounding box threshold
         self.tracking_thr = 0.3  # Tracking threshold
