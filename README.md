@@ -35,6 +35,8 @@ Install OWLv2 and SAM2 using their GitHub guides. Again, we used a mamba environ
 
 `mamba install conda-forge::sam-2`
 
+After installing SAM2, download the [model weights `.pt` file](https://huggingface.co/facebook/sam2.1-hiera-large/tree/main) and place it into the `segmentation` folder. We used `sam2.1-hiera-large`.
+
 If you are using CUDA, remember to set the CUDA environment variables in your `.bashrc`:
 ```
 export CUDA=12.6

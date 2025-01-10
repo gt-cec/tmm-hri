@@ -2,7 +2,20 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import os, sys
+import torch
+
+# set device to cuda if cuda is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print("Using CUDA")
+# otherwise check if on macos
+elif sys.platform == "darwin":
+    device = "mps"
+    print("Using MPS")
+else:
+    device = "cpu"
+    print("Using CPU")
 
 try:
     import hydra
@@ -19,9 +32,9 @@ try:
     # this should work now
     # model = build_sam2('<config-name>', '<checkpoint-path>')
 
-    sam2_checkpoint = "/Users/jack/Documents/Installations/sam2/sam2/configs/sam2.1/sam2.1_hiera_large.pt"
+    sam2_checkpoint = "./segmentation/sam2.1_hiera_large.pt"
     model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
-    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device="mps")
+    sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
     predictor = SAM2ImagePredictor(sam2_model)
 except ModuleNotFoundError as e:
     print("WARNING: SAM2 is not installed, do not expect to use it. Message:", e)
