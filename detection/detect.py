@@ -6,7 +6,17 @@ import numpy as np
 from transformers import Owlv2Processor, Owlv2ForObjectDetection
 import os
 
-device = "mps" if os.name == "posix" else "cuda"  # set the device to use
+# set device to cuda if cuda is available
+if torch.cuda.is_available():
+    device = "cuda"
+    print("Using CUDA")
+# otherwise check if on macos
+elif os.name == "posix":
+    device = "mps"
+    print("Using MPS")
+else:
+    device = "cpu"
+    print("Using CPU")
 
 # if you get an undefined symbol:ffi_type_uint32, version LIBFFI_BASE_7.0 error, set the env var LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libffi.so.7
 processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
