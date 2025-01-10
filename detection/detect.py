@@ -5,13 +5,14 @@ import torch
 import numpy as np
 from transformers import Owlv2Processor, Owlv2ForObjectDetection
 import os
+import sys
 
 # set device to cuda if cuda is available
 if torch.cuda.is_available():
     device = "cuda"
     print("Using CUDA")
 # otherwise check if on macos
-elif os.name == "posix":
+elif sys.platform == "darwin":
     device = "mps"
     print("Using MPS")
 else:
