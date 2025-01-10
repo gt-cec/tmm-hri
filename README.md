@@ -37,8 +37,8 @@ Install OWLv2 and SAM2 using their GitHub guides. Again, we used a mamba environ
 
 If you are using CUDA, remember to set the CUDA environment variables in your `.bashrc`:
 ```
-export CUDA=12.2
-export CUDA_HOME=~/anaconda3/envs/sam2  # NOTE: replace this with your anaconda environment path, I named mine sam2 for no particular reason.
+export CUDA=12.6
+export CUDA_HOME=~/miniconda/envs/tmmhri
 export PATH=$CUDA_HOME/bin${PATH:+:${PATH}}
 export CUDA_PATH=$CUDA_HOME
 export LIBRARY_PATH=$CUDA_HOME/nvvm/lib64:$LIBRARY_PATH

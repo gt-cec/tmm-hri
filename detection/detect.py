@@ -6,13 +6,15 @@ import numpy as np
 from transformers import Owlv2Processor, Owlv2ForObjectDetection
 import os
 
+device = "mps" if os.name == "posix" else "cuda"  # set the device to use
+
 # if you get an undefined symbol:ffi_type_uint32, version LIBFFI_BASE_7.0 error, set the env var LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libffi.so.7
 processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
-model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble").to(torch.device("mps"))
+model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble").to(torch.device(device))
 
 def detect(image, classes, threshold=0.1, save_name=None):
     texts = [["" + c for c in classes]]
-    inputs = processor(text=texts, images=image, return_tensors="pt").to(torch.device("mps"))
+    inputs = processor(text=texts, images=image, return_tensors="pt").to(torch.device(device))
     with torch.no_grad():
         outputs = model(**inputs)
 

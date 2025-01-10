@@ -13,6 +13,17 @@ else
     exit
 fi
 
+# check if cuda is installed
+echo "Checking if CUDA is installed..."
+if ! command -v nvcc &> /dev/null
+then
+    echo "!! CUDA could not be found. Please install CUDA and try again."
+    exit
+else
+    echo "    CUDA is installed, installing the cusparse library."
+    pip install nvidia-cusparse-cu12 -y
+fi
+
 # check if Mamba is installed
 echo "Checking if Mamba is installed..."
 if ! command -v mamba &> /dev/null
@@ -39,7 +50,7 @@ cd pose_estimation
 git clone https://github.com/open-mmlab/mmpose.git
 cd mmpose
 mamba run -n tmm-hri python3.11 -m pip install mmcv==2.1.0 mmdet
-mamba run -n tmm-hri python3.11 -m pip install -v -e .`
+mamba run -n tmm-hri python3.11 -m pip install -v -e .
 cd ../../
 
 # all done!
