@@ -137,9 +137,19 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
         object_ids = __sample_objects__(sample_source, num=len(char_ids), min_dist=5)
     elif sample_source is not None and surface_ids == []:  # if sampling the surfaces
         surface_ids = __sample_objects__(sample_source, num=len(char_ids))
-    script = " | ".join([f"<char{agent_id}> [{action}]" + (f" <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})" if object_ids is not None and object_ids[agent_id] is not None else "") + (f" <{surface_ids[agent_id][1]}> ({surface_ids[agent_id][0]})" if surface_ids is not None and surface_ids[agent_id] is not None  else "") for agent_id in char_ids[0:]])
-    print("Running script:", script)
-    success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
+    for agent_id in char_ids:
+        if object_ids is not None and object_ids[agent_id] is not None:
+            script = f"<char{agent_id}> [{action}] <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})"
+        elif surface_ids is not None and surface_ids[agent_id] is not None:
+            script = f"<char{agent_id}> [{action}] <{surface_ids[agent_id][1]}> ({surface_ids[agent_id][0]})"
+        else:
+            script = f"<char{agent_id}> [{action}]"
+        print("Running script:", script)
+        success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
+        if not success:
+            print("FAILURE", sim_failure)
+            break
+        print("Success!")
     print("Make character 1 look at character 2")
     script = f"<char0> [lookat] {char_ids[1]}"
     success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
