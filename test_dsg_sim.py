@@ -133,6 +133,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
                 pred_human_mm.update_from_detected_objects(objects_visible_to_human)  # update the predicted human's mental model
             last_saw_human = (frame_id, human_location)
 
+        # if saving or showing the plot, generate it
         if save_plot or show_plot is not None:
             if show_plot == visualization.plot_pred_human.PlotPredHuman:
                 bgr = cv2.imread(f"{human_frame_prefix}_normal.png")
@@ -142,7 +143,14 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
             if save_plot:
                 plt.savefig(f"visualization_frames/frame_{frame_id}.png", dpi=300)
-            plt.pause(.01)
+            plt.pause(.01)  # needed for matplotlib to show the plot and not get tripped up
+
+        # if saving the dynamic scene graphs, save them
+        if save_dsgs:
+            with open(f"{episode_dir}/DSGs_{frame_id}.pkl", "wb") as f:
+                pickle.dump({"robot": robot_mm, "gt human": gt_human_mm, "pred human": pred_human_mm}, f)
+            print(f"Saved scene graphs for frame {frame_id}")
+        
     return
 
 if __name__ == "__main__":

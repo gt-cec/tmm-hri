@@ -14,7 +14,7 @@ ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with i
 ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion, bench fails for a lot of placements
 os_name = platform.system()
 
-SIMULATOR_PATH = "./macos_exec.v2.3.0.app" # Your path to the simulator
+SIMULATOR_PATH = "linux_exec/linux_exec.v2.3.0.x86_64" # Your path to the simulator
 SIMULATOR_PORT = "8080" # or your preferred port
 
 def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
@@ -107,8 +107,8 @@ def __reset_sim__(seed=42):
     # subprocess.run(["pkill", "-f", sim_filename])
     # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
-    comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
-    #comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    # comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
