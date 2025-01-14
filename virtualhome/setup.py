@@ -24,7 +24,6 @@ setuptools.setup(
     install_requires=[
         'certifi==2024.7.4',
         'chardet==3.0.4',
-        'idna==2.8',
         'matplotlib>=3.4.2',
         'networkx==2.3',
         'numpy>=1.19.3',
