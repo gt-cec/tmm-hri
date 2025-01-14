@@ -75,12 +75,13 @@ Now head back to the root directory:
 
 #### Simulator (VirtualHome)
 
-VirtualHome has two components: an executable that runs a Unity player for the simulation, and a Python API that is used to interact with the simulator. Download the simulator executable corresponding to your platform from the VirtualHome documentation [here](https://github.com/xavierpuigf/virtualhome/tree/master?tab=readme-ov-file#download-unity-simulator). Place the executable in the project directory (e.g., `tmm-hri/linux_exec_v2.3.0.app`).
+VirtualHome has two components: an executable that runs a Unity player for the simulation, and a Python API that is used to interact with the simulator. Download the simulator executable corresponding to your platform from the VirtualHome documentation [here](https://github.com/xavierpuigf/virtualhome/tree/master?tab=readme-ov-file#download-unity-simulator). Move the .zip file to the project directory and unzip it, it should make a subfolder called `linux_exec` containing the Unity player and an executable `tmm-hri/linux_exec/linux_exec_v2.3.0.x86_64`.
 
-We had to make some minor modifications to the VirtualHome API for it to work, so we include a stripped-down fork of the API in this project repo. VirtualHome is scarcely maintained so this API should stay relevant for the foreseeable future.
+**NOTE:** On Linux you will need to make the executable actually runnable: `chmod +x ./linux_exec/linux_exec_v2.3.0.x86_64`, otherwise you will run into `Error 2 file or directory not found` and some memory dump information.
+
+We had to make some minor modifications to the VirtualHome API for it to work, so we include a stripped-down fork of the API in this project repo. VirtualHome is scarcely maintained so this code should stay relevant for the foreseeable future.
 
 To run the simulator, first launch the executable, and then open a terminal and run one of the toy problem scripts (see the simulation section).
-
 
 ### Generating a simulation episode
 

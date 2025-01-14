@@ -72,7 +72,11 @@ class MentalModel:
 
         # make sure the seg mask and detected object dimensions match
         assert len(detected_objects) == len(object_seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(object_seg_masks)}), one of these modules is misperforming."
+        
+        # project object locations to the robot's pose
         detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, object_seg_masks, depth, self.fov)
+        
+        # update the dynamic scene graph
         self.dsg.update(detected_objects)
 
         return detected_objects, (detected_humans, rgb_detected_humans, depth_detected_humans)

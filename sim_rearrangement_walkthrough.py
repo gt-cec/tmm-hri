@@ -73,7 +73,7 @@ def __randomize_object_locations__(g:dict) -> dict:
     """
     positions_ids = []
     positions_positions = []
-
+    
     # get the positions of the objects
     for n in g["nodes"]:
         if n["category"] != "Props":
@@ -83,6 +83,8 @@ def __randomize_object_locations__(g:dict) -> dict:
         positions_ids.append(n["id"])
         positions_positions.append(n["obj_transform"]["position"])
 
+    # get the objects in each room
+    rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
     positions_ids_old = [x for x in positions_ids]
 
     # shuffle the positions IDs
@@ -93,10 +95,30 @@ def __randomize_object_locations__(g:dict) -> dict:
         positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i])
     
     # replace the positions
+    [print(x) for x in g["nodes"]]
     for i in range(len(g["nodes"])):
         if g["nodes"][i]["id"] not in positions_mapping:
             continue
+        if n["category"] != "Props":
+            continue
+        if ("GRABBABLE" not in n["properties"]):
+            continue
         using_position_of_id = positions_mapping[g["nodes"][i]["id"]][0]
+        moved = False
+        # find the room of the old object and the new object
+        for room in objects_in_rooms:  # for each room
+            for item in objects_in_rooms[room]:  # for each item in the room
+                if item[0] == positions_mapping[using_position_of_id][0]:  # if the item ID matches the position mapping
+                    print("REPLACING", item[0], "with", i)
+                    # remove previous INSIDE
+                    g["edges"].remove({"from_id": item[0], "to_id": room, "relation_type": "INSIDE"})
+                    # add new INSIDE
+                    g["edges"].append({"from_id": i, "to_id": room, "relation_type": "INSIDE"})
+                    moved = True
+        if not moved:
+            print("DID NOT MOVE!!", i)
+
+        # change the room
         g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
     return g
 
@@ -107,8 +129,8 @@ def __reset_sim__(seed=42):
     # subprocess.run(["pkill", "-f", sim_filename])
     # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
-    # comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
-    comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    # comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
@@ -141,22 +163,17 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
     for agent_id in reversed(char_ids):
         if object_ids is not None and object_ids[agent_id] is not None:
             script = f"<char{agent_id}> [{action}] <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})"
-        while True:
-            print("Running script:", script, "saving to", output_folder, file_name_prefix)
-            success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
-            if input("c to continue") == "c":
-                break
+        print("Running script:", script, "saving to", output_folder, file_name_prefix)
+        success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
         if not success:
             print("FAILURE", sim_failure)
             break
         print("Success!")
+    input("Continue")
     print("Make character 1 look at character 2")
     script = f"<char0> [lookat] <{object_ids[0][1]}> ({object_ids[0][0]})"
-    while True:
-        print("Running script:", script)
-        success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
-        if input("c to continue") == "c":
-            break
+    print("Running script:", script)
+    success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
     if surface_ids is None and action not in ["grab", "put"]:
         return object_ids, success, sim_failure
     elif object_ids is None and action not in ["grab", "put"]:
@@ -212,38 +229,50 @@ def __get_objects_in_rooms__():
 
 # sample two items, choose items that are not close together so the agents don't get stuck 
 def __sample_objects__(sample_source:list, num:int=2, min_dist:float=3):
-    # bit of a hack, just resample until we get objects that aren't very close to each other
+    # bit of a hack, just resample until we get objects that aren't very close to each other or near the ignore spots
+    ignore_spots = ((-2.3, 2.7, 3),)  # (x, z, radius**2): shower
     # to optimize: start with a sample, and then resample objects that are close to each other
     escape_limit = 1000  # after 1000 attempts we know something is dearly wrong
     while escape_limit > 0:  # will continue until two good objects are found
         res = random.sample(sample_source, num)  # generate original sample, without replacement
+        obj_1_res = res[0]
+        obj_2_res = res[1]  # randomly choose an object
         failed = False  # flag for whether the checks failed
-        for obj_1_idx in range(num):  # check each object pair for distance violations
-            obj_1_res = res[obj_1_idx]
-            for obj_2_idx in range(obj_1_idx+1, num):
-                obj_2_res = res[obj_2_idx]
-                if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < min_dist ** 2:
-                    failed = True
-                    break
-            if failed:
+        # check the objects with each other
+        if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < min_dist ** 2:
+            failed = True
+            continue
+        # check the ignore spots
+        for spot in ignore_spots:
+            if (obj_1_res[2][0] - spot[0]) ** 2 + (obj_1_res[2][2] - spot[1]) ** 2 < spot[2] ** 2:
+                failed = True
+                break
+            if (obj_2_res[2][0] - spot[0]) ** 2 + (obj_2_res[2][2] - spot[1]) ** 2 < spot[2] ** 2:
+                failed = True
                 break
         if not failed:
             break
         escape_limit -= 1  # decrement the attempts remaining
+    if escape_limit == 0:
+        print("FAILED TO GET A SAMPLE!!!")
+    else:
+        print("SAMPLE:", res)
     return res
 
 # run the agents
 if __name__ == "__main__":
     seed = 42
-    output_folder = "episodes"
+    output_folder = "../episodes"  # relative to the executable, in our case up one directory
     episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
         episode_name = f"episode_{seed}"
         print("Starting", episode_name, output_folder + "/" + episode_name)
+        print("Resetting sim...")
         instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
+        print("Sim reset! Walking through household now.")
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
-        with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file
+        with open(f"{output_folder}/{episode_name}/episode_info.txt", "w") as f:  # add an episode info file
             f.write(f"{episode_name}\n{res}\n{instance_colormap}")
         print("Completed agent run", episode_name, ": ended gracefully?", res)
 
