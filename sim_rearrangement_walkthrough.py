@@ -3,7 +3,7 @@ from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
 # from virtualhome.virtualhome.demo.utils_demo import *
 import glob
 from PIL import Image
-import random, threading, time, subprocess, datetime, os
+import random, threading, time, subprocess, datetime, os, pathlib
 import platform
 import utils
 
@@ -12,8 +12,10 @@ random.seed(datetime.datetime.now().timestamp())
 
 ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with interaction positions, waterglass have problems with IDs sticking to the graph, slippers are on the ground
 ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion, bench fails for a lot of placements
-
 os_name = platform.system()
+
+SIMULATOR_PATH = "./macos_exec.v2.3.0.app" # Your path to the simulator
+SIMULATOR_PORT = "8080" # or your preferred port
 
 def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
     rooms = __get_rooms__()  # get the rooms
@@ -23,7 +25,7 @@ def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Curren
     rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
     print("Rooms", rooms)
     for i in range(len(rooms)):
-        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder="../" + output_folder, file_name_prefix=file_name_prefix)
+        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
         print("Moved to next room", rooms[room_ids[i]], "Target objects", target_objects)
         if sim_failure:
             return False, num_traversed_rooms
@@ -106,6 +108,7 @@ def __reset_sim__(seed=42):
     # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
     comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    #comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
@@ -139,7 +142,7 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
         if object_ids is not None and object_ids[agent_id] is not None:
             script = f"<char{agent_id}> [{action}] <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})"
         while True:
-            print("Running script:", script)
+            print("Running script:", script, "saving to", output_folder, file_name_prefix)
             success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
             if input("c to continue") == "c":
                 break
@@ -165,7 +168,8 @@ def __sim_script__(script:str, output_folder:str="Output/", file_name_prefix:str
     sim_failure = False  # flag for the sim failing, requires restart
     while True:  # keep trying in case there are connection errors
         try:  # try running the script
-            success, message = comm.render_script([script], image_synthesis=["normal", "seg_inst", "seg_class", "depth"], camera_mode=["FIRST_PERSON"], image_width=512, image_height=512, save_pose_data=True, recording=True, find_solution=False, processing_time_limit=10000, frame_rate=10, output_folder=output_folder, file_name_prefix=file_name_prefix)
+            #, "seg_inst", "seg_class", "depth"
+            success, message = comm.render_script([script], image_synthesis=["normal"], camera_mode=["FIRST_PERSON"], image_width=512, image_height=512, save_pose_data=True, recording=True, find_solution=False, processing_time_limit=10000, frame_rate=10, output_folder=output_folder, file_name_prefix=file_name_prefix)
             if success:  # if a script execution failed, the success flag will still be True, so mark as failed
                 success = False if len([True for x in message if message[x]["message"] != "Success"]) > 0 else success
             print(f"Script Complete: {success}, {message}")
@@ -235,8 +239,8 @@ if __name__ == "__main__":
     episode_count = 1
     num_agents = 2
     for i in range(episode_count):  # run a fixed number of episodes so the dataset doesn't use all storage (1-2GB per run)
-        episode_name = f"episode_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')}_agents_{num_agents}_run_{i}"
-        print("Starting", episode_name)
+        episode_name = f"episode_{seed}"
+        print("Starting", episode_name, output_folder + "/" + episode_name)
         instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
         with open(output_folder + "/" + episode_name + "/episode_info.txt", "w") as f:  # add an episode info file

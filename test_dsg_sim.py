@@ -26,7 +26,7 @@ plt.ioff()
 
 map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
 
-def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None):
+def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None, save_dsgs=None):
     # validate episode_dir
     assert episode_dir is not None, "Missing episode_dir param"
     episode_name = episode_dir.split("/")[-1]
@@ -154,5 +154,5 @@ if __name__ == "__main__":
     agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
-    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman)
+    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
     print("Done.")
