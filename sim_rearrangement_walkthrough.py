@@ -4,29 +4,28 @@ from virtualhome.virtualhome.simulation.unity_simulator import utils_viz
 import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os, pathlib
-import platform
+import platform, math
 import utils
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
 
-ignore_objects = ["lime", "waterglass", "slippers"]  # limes have trouble with interaction positions, waterglass have problems with IDs sticking to the graph, slippers are on the ground
-ignore_surfaces = ["bookshelf", "bench"]  # bookshelves have a lot of occlusion, bench fails for a lot of placements
+ignore_objects = ["lime", "waterglass", "slippers", "cellphone"]  # limes/cellphones have trouble with interaction positions, waterglass have problems with IDs sticking to the graph, slippers are on the ground
 os_name = platform.system()
 
-SIMULATOR_PATH = "linux_exec/linux_exec.v2.3.0.x86_64" # Your path to the simulator
-SIMULATOR_PORT = "8080" # or your preferred port
+room_points = {
+    "bathroom": ((5.87, -6.92), (-1.32, -5.80)),
+    "bedroom": ((6.05, -6.98), (-8.48, -0.40)),
+    "kitchen": ((-4.87, -6.91), (-0.64, -5.16)),
+    "livingroom": ((-2.92, 2.52), (-1.67, -5.80))
+}
 
 def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
-    rooms = __get_rooms__()  # get the rooms
-    print(rooms)
     num_traversed_rooms = 0
     room_ids = list(rooms.keys())
-    rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
-    print("Rooms", rooms)
+    rooms, _, objects_in_rooms, _ = __get_objects_in_rooms__()
     for i in range(len(rooms)):
-        target_objects, success, sim_failure = __sim_action__("walk", object_ids=[], sample_source=list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
-        print("Moved to next room", rooms[room_ids[i]], "Target objects", target_objects)
+        target_objects, success, sim_failure = __sim_action__("walk", room_points[rooms[room_ids[i]][1]], list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
         if sim_failure:
             return False, num_traversed_rooms
         if success:
@@ -37,6 +36,7 @@ def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Curren
 
 # remove duplicate items from the graph
 def __remove_duplicate_items_from_graph__(g:dict):
+    # removes duplicate classes (or virtualhome sometimes won't get the agent )
     new_graph = {"nodes": [], "edges": []}
     used_classes = set()
     used_ids = set()
@@ -73,18 +73,18 @@ def __randomize_object_locations__(g:dict) -> dict:
     """
     positions_ids = []
     positions_positions = []
+    positions_names = []
     
     # get the positions of the objects
     for n in g["nodes"]:
-        if n["category"] != "Props":
-            continue
-        if ("GRABBABLE" not in n["properties"]):
+        if not __node_is_grabbable__(n):
             continue
         positions_ids.append(n["id"])
         positions_positions.append(n["obj_transform"]["position"])
+        positions_names.append(n["class_name"])
 
     # get the objects in each room
-    rooms, objects, objects_in_rooms, g = __get_objects_in_rooms__()
+    rooms, _, objects_in_rooms, g = __get_objects_in_rooms__()
     positions_ids_old = [x for x in positions_ids]
 
     # shuffle the positions IDs
@@ -92,45 +92,44 @@ def __randomize_object_locations__(g:dict) -> dict:
 
     positions_mapping = {}
     for i in range(len(positions_ids)):
-        positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i])
+        positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i], positions_names[i])
     
     # replace the positions
-    [print(x) for x in g["nodes"]]
-    for i in range(len(g["nodes"])):
-        if g["nodes"][i]["id"] not in positions_mapping:
-            continue
-        if n["category"] != "Props":
-            continue
-        if ("GRABBABLE" not in n["properties"]):
-            continue
-        using_position_of_id = positions_mapping[g["nodes"][i]["id"]][0]
-        moved = False
+    for id_of_node_to_change in positions_mapping:
+        using_position_of_id = positions_mapping[id_of_node_to_change][0]
         # find the room of the old object and the new object
         for room in objects_in_rooms:  # for each room
             for item in objects_in_rooms[room]:  # for each item in the room
                 if item[0] == positions_mapping[using_position_of_id][0]:  # if the item ID matches the position mapping
-                    print("REPLACING", item[0], "with", i)
                     # remove previous INSIDE
                     g["edges"].remove({"from_id": item[0], "to_id": room, "relation_type": "INSIDE"})
                     # add new INSIDE
-                    g["edges"].append({"from_id": i, "to_id": room, "relation_type": "INSIDE"})
-                    moved = True
-        if not moved:
-            print("DID NOT MOVE!!", i)
+                    g["edges"].append({"from_id": id_of_node_to_change, "to_id": room, "relation_type": "INSIDE"})
 
         # change the room
-        g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
+        for i in range(len(g["nodes"])):
+            if g["nodes"][i]["id"] == id_of_node_to_change:
+                g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
+                break
     return g
+
+# decide whether a node is applicable or not
+def __node_is_grabbable__(n:dict) -> bool:
+    """
+    Determines whether a node is a grabbable object.
+    """
+    if n["category"] != "Props":
+        return False
+    if "GRABBABLE" not in n["properties"]:
+        return False
+    if n["class_name"] in ignore_objects:
+        return False
+    return True
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__(seed=42):
-    # print("Sending kill command to simulator")
-    # sim_filename = "macos_exec.v2.3.0.app" if os_name == "Darwin" else "linux_exec.v2.3.0.x86_64"
-    # subprocess.run(["pkill", "-f", sim_filename])
-    # print("  Sent, reconnecting - expect a few seconds of waiting to accept a connection while the simulator restarts")
     global comm
     comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
-    # comm = UnityCommunication(port=SIMULATOR_PORT, file_name=SIMULATOR_PATH, no_graphics=False, timeout_wait=30)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
@@ -140,11 +139,18 @@ def __reset_sim__(seed=42):
             time.sleep(3)
     
     random.seed(seed)
-    new_graph = __remove_duplicate_items_from_graph__(comm.environment_graph()[1])  # remove items that are too far or duplicate IDs
-    new_graph = __randomize_object_locations__(new_graph)  # randomize the object locations
-    comm.expand_scene(new_graph)
-    time.sleep(5)
-    comm.add_character('Chars/Male2', initial_room='kitchen')  # add two agents this time
+    # remove items that are too far or duplicate IDs
+    g = comm.environment_graph()[1]
+    g = __remove_duplicate_items_from_graph__(g)
+    comm.expand_scene(g)
+    time.sleep(3)
+    # randomize the object locations
+    g = comm.environment_graph()[1]
+    g = __randomize_object_locations__(g)
+    comm.expand_scene(g)
+    time.sleep(3)
+    comm.add_character('Chars/Male2', initial_room='kitchen')
+    time.sleep(3)
     comm.add_character('Chars/Male2', initial_room='kitchen')
 
     instance_colormap = {}
@@ -155,38 +161,54 @@ def __reset_sim__(seed=42):
         instance_colormap[rgb_color] = (n["id"], n["class_name"], n["bounding_box"]["center"])
     return instance_colormap
 
+def __object_of_min_dist__(loc, objects):
+    min_dist = float("infinity")
+    min_i = None
+    for i in range(len(objects)):
+        dist = math.sqrt((loc[0] - objects[i][2][0]) ** 2 + (loc[1] - objects[i][2][1]) ** 2)
+        if dist < min_dist:
+            min_i = i
+            min_dist = dist
+    return objects[min_i]
+
 # sends an action to all agents
-def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surface_ids:list=None, sample_source:str=None, output_folder:str="Output/", file_name_prefix:str="script"):
+def __sim_action__(action:str, room_points:list, objects_in_room:list, char_ids:list=[0,1], object_ids:list=None, output_folder:str="Output/", file_name_prefix:str="script"):
     sim_failure = False  # flag for the sim failing, requires restart
-    if sample_source is not None and object_ids == []:  # if sampling the objects
-        object_ids = __sample_objects__(sample_source, num=len(char_ids), min_dist=5)
+    object_ids = [__object_of_min_dist__(room_points[i], objects_in_room) for i in range(len(room_points))]
+
     for agent_id in reversed(char_ids):
-        if object_ids is not None and object_ids[agent_id] is not None:
-            script = f"<char{agent_id}> [{action}] <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})"
+        script = f"<char{agent_id}> [{action}] <{object_ids[agent_id][1]}> ({object_ids[agent_id][0]})"
         print("Running script:", script, "saving to", output_folder, file_name_prefix)
         success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
         if not success:
             print("FAILURE", sim_failure)
             break
-        print("Success!")
-    input("Continue")
-    print("Make character 1 look at character 2")
-    script = f"<char0> [lookat] <{object_ids[0][1]}> ({object_ids[0][0]})"
+        print("Success!", success, sim_failure)
+        time.sleep(3)
+    
+    script = f"<char0> [lookat] <{object_ids[1][1]}> ({object_ids[1][0]})"
     print("Running script:", script)
     success, sim_failure = __sim_script__(script, output_folder=output_folder, file_name_prefix=file_name_prefix)
-    if surface_ids is None and action not in ["grab", "put"]:
-        return object_ids, success, sim_failure
-    elif object_ids is None and action not in ["grab", "put"]:
-        return surface_ids, success, sim_failure
-    return success, sim_failure
+    return object_ids, success, sim_failure
 
 # run an action on the simulator
 def __sim_script__(script:str, output_folder:str="Output/", file_name_prefix:str="script"):
     sim_failure = False  # flag for the sim failing, requires restart
     while True:  # keep trying in case there are connection errors
         try:  # try running the script
-            #, "seg_inst", "seg_class", "depth"
-            success, message = comm.render_script([script], image_synthesis=["normal"], camera_mode=["FIRST_PERSON"], image_width=512, image_height=512, save_pose_data=True, recording=True, find_solution=False, processing_time_limit=10000, frame_rate=10, output_folder=output_folder, file_name_prefix=file_name_prefix)
+            success, message = comm.render_script([script], 
+                                                  image_synthesis=["normal", "seg_inst", "seg_class", "depth"], 
+                                                  camera_mode=["FIRST_PERSON"], 
+                                                  image_width=512, 
+                                                  image_height=512, 
+                                                  save_pose_data=True, 
+                                                  recording=True, 
+                                                  find_solution=False,
+                                                  processing_time_limit=10000, 
+                                                  frame_rate=10, 
+                                                  output_folder=output_folder, 
+                                                  file_name_prefix=file_name_prefix
+                                                )
             if success:  # if a script execution failed, the success flag will still be True, so mark as failed
                 success = False if len([True for x in message if message[x]["message"] != "Success"]) > 0 else success
             print(f"Script Complete: {success}, {message}")
@@ -205,59 +227,15 @@ def __sim_script__(script:str, output_folder:str="Output/", file_name_prefix:str
             break
     return success, sim_failure
 
-# pull the rooms from the graph
-def __get_rooms__() -> dict:
-    _, g = comm.environment_graph()  # get the environment graph
-    rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
-    return rooms
-
-# pull the objects and surfaces from the graph
-def __get_objects_and_surfaces__():
-    _, g = comm.environment_graph() # get the environment graph
-    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
-    surfaces = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
-    return objects, surfaces, g
-
 # pull the objects and surfaces from the graph in each room
-def __get_objects_in_rooms__():
-    _, g = comm.environment_graph() # get the environment graph
+def __get_objects_in_rooms__(g={}):
+    if g == {}:
+        _, g = comm.environment_graph() # get the environment graph
     rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
-    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
+    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if __node_is_grabbable__(x)}
     edges = {x["from_id"] : x for x in g["edges"] if x["relation_type"] == "INSIDE" and x["from_id"] in objects and x["to_id"] in rooms}
     objects_in_rooms = {room_id : [objects[edge["from_id"]] for edge in edges.values() if edge["to_id"] == room_id] for room_id in rooms}
     return rooms, objects, objects_in_rooms, g
-
-# sample two items, choose items that are not close together so the agents don't get stuck 
-def __sample_objects__(sample_source:list, num:int=2, min_dist:float=3):
-    # bit of a hack, just resample until we get objects that aren't very close to each other or near the ignore spots
-    ignore_spots = ((-2.3, 2.7, 3),)  # (x, z, radius**2): shower
-    # to optimize: start with a sample, and then resample objects that are close to each other
-    escape_limit = 1000  # after 1000 attempts we know something is dearly wrong
-    while escape_limit > 0:  # will continue until two good objects are found
-        res = random.sample(sample_source, num)  # generate original sample, without replacement
-        obj_1_res = res[0]
-        obj_2_res = res[1]  # randomly choose an object
-        failed = False  # flag for whether the checks failed
-        # check the objects with each other
-        if (obj_1_res[2][0] - obj_2_res[2][0]) ** 2 + (obj_1_res[2][2] - obj_2_res[2][2]) ** 2 < min_dist ** 2:
-            failed = True
-            continue
-        # check the ignore spots
-        for spot in ignore_spots:
-            if (obj_1_res[2][0] - spot[0]) ** 2 + (obj_1_res[2][2] - spot[1]) ** 2 < spot[2] ** 2:
-                failed = True
-                break
-            if (obj_2_res[2][0] - spot[0]) ** 2 + (obj_2_res[2][2] - spot[1]) ** 2 < spot[2] ** 2:
-                failed = True
-                break
-        if not failed:
-            break
-        escape_limit -= 1  # decrement the attempts remaining
-    if escape_limit == 0:
-        print("FAILED TO GET A SAMPLE!!!")
-    else:
-        print("SAMPLE:", res)
-    return res
 
 # run the agents
 if __name__ == "__main__":
@@ -272,7 +250,7 @@ if __name__ == "__main__":
         instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
         print("Sim reset! Walking through household now.")
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
-        with open(f"{output_folder}/{episode_name}/episode_info.txt", "w") as f:  # add an episode info file
+        with open(f"episodes/{episode_name}/episode_info.txt", "w") as f:  # add an episode info file
             f.write(f"{episode_name}\n{res}\n{instance_colormap}")
         print("Completed agent run", episode_name, ": ended gracefully?", res)
 
