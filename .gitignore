@@ -11,6 +11,9 @@
 !visualization_frames/
 visualization_frames/*
 
+# metrics
+!metrics/
+
 # simulation
 !sim/*
 # simulation: ignore the Output folder
