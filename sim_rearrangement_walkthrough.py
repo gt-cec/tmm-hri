@@ -251,7 +251,7 @@ if __name__ == "__main__":
         print("Sim reset! Walking through household now.")
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
         with open(f"episodes/{episode_name}/episode_info.txt", "w") as f:  # add an episode info file
-            f.write(f"{episode_name}\n{res}\n{instance_colormap}")
+            f.write(f"{episode_name}\n{res}\n\n{instance_colormap}")
         print("Completed agent run", episode_name, ": ended gracefully?", res)
 
 print("Done!")

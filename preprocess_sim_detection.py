@@ -62,6 +62,6 @@ def process_sim_run(episode_name, episode_dir):
 
 
 if __name__ == "__main__":
-    episode_name = "episode"
+    episode_name = "episode_42"
     episode_dir = f"episodes/{episode_name}"
     process_sim_run(episode_name, episode_dir)
