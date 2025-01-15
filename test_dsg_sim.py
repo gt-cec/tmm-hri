@@ -156,7 +156,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
     # episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
-    episode_name = "episode"
+    episode_name = "episode_42"
     episode_dir = f"episodes/{episode_name}"
     # get the agent ID
     agent_id = "0"
