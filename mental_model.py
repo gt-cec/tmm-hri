@@ -1,7 +1,6 @@
 # mental_model.py: uses the segmentator and the dynamic scene graph to construct and update the mental model
 
 from dsg import dsg
-# from segmentation import scene_segmentation
 from detection import detect
 from segmentation import segment
 from pose_estimation import pose

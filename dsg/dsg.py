@@ -95,6 +95,16 @@ class DSG:
     # get the number of objects in the scene graph
     def count(self):
         return len(self.objects)
+    
+    # get the objetst by class
+    def get_objects_by_class(self) -> dict:
+        objects_by_class = {}
+        for object_id in self.objects:
+            object_class = self.objects[object_id].object_class
+            if object_class not in objects_by_class:
+                objects_by_class[object_class] = []
+            objects_by_class[object_class].append(self.objects[object_id])
+        return objects_by_class
 
     # update a known object's properties, used when the object ID is known
     def __update_known_object__(self, object_id:int, object_class:Optional[str]=None, x:Optional[float]=None, y:Optional[float]=None, z:Optional[float]=None, last_seen:Optional[float]=None):

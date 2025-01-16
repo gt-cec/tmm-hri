@@ -17,14 +17,11 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # required for OpenCV to load .exr
 # set device to cuda if cuda is available
 if torch.cuda.is_available():
     device = "cuda"
-    print("Using CUDA")
 # otherwise check if on macos
 elif sys.platform == "darwin":
     device = "mps"
-    print("Using MPS")
 else:
     device = "cpu"
-    print("Using CPU")
 
 """
 Processing depth but stored as rgba.

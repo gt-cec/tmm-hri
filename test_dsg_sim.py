@@ -56,13 +56,25 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
     pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
 
     # initialize the mental models
-    robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
-    gt_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the ground truth human's mental model
-    pred_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the predicted human's mental model
+    # continue from saved if applicable
+    start_frame, end_saved_dsgs = utils.get_highest_saved_dsgs(episode_dir)
+    if start_frame == -1:
+        robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
+        gt_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the ground truth human's mental model
+        pred_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the predicted human's mental model
 
-    robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
-    gt_human_mm.initialize(objects=initial_objects, verbose=False)
-    pred_human_mm.initialize(objects=initial_objects, verbose=False)
+        robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
+        gt_human_mm.initialize(objects=initial_objects, verbose=False)
+        pred_human_mm.initialize(objects=initial_objects, verbose=False)
+        start_frame = 0
+    else:
+        with open(f"{episode_dir}/DSGs_{start_frame}.pkl", "rb") as f:
+            dsgs = pickle.load(f)
+            robot_mm = dsgs["robot"]
+            gt_human_mm = dsgs["gt human"]
+            pred_human_mm = dsgs["pred human"]
+        print(f"Continuing from frame {start_frame}")
+        start_frame += 1
 
     last_saw_human = (None, [])  # (frame ID, location) of where the human was last seen by the robot
 
@@ -73,6 +85,8 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
     # run through frames and update mental models
     frames = sorted([int(x) for x in agent_poses.keys()])
     for frame_id in frames:
+        if frame_id < start_frame:
+            continue
         # load the frame files
         print(f"Processing frame {frame_id}")
         agent_pose = [agent_poses[str(frame_id)][0], agent_poses[str(frame_id)][-1]]
@@ -137,8 +151,9 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
         if save_plot or show_plot is not None:
             if show_plot == visualization.plot_pred_human.PlotPredHuman:
                 bgr = cv2.imread(f"{human_frame_prefix}_normal.png")
-                human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
-                vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
+                if bgr is not None:
+                    human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
+                    vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
             if save_plot:
@@ -148,7 +163,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
         # if saving the dynamic scene graphs, save them
         if save_dsgs:
             with open(f"{episode_dir}/DSGs_{frame_id}.pkl", "wb") as f:
-                pickle.dump({"robot": robot_mm, "gt human": gt_human_mm, "pred human": pred_human_mm}, f)
+                pickle.dump({"robot": robot_mm.dsg, "gt human": gt_human_mm.dsg, "pred human": pred_human_mm.dsg}, f)
             print(f"Saved scene graphs for frame {frame_id}")
         
     return

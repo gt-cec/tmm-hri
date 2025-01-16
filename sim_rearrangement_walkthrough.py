@@ -5,7 +5,7 @@ import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os, pathlib
 import platform, math
-import utils
+import pickle
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
@@ -249,6 +249,10 @@ if __name__ == "__main__":
         print("Resetting sim...")
         instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
         print("Sim reset! Walking through household now.")
+        g = comm.environment_graph()[1]
+        with open("episodes/{episode_name}/starting_graph.pkl", "wb") as f:
+            pickle.dump(g, f)
+        print("Starting graph saved.")
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
         with open(f"episodes/{episode_name}/episode_info.txt", "w") as f:  # add an episode info file
             f.write(f"{episode_name}\n{res}\n\n{instance_colormap}")

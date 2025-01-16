@@ -141,3 +141,12 @@ def calculate_rw_coordinates(root_2d, root_depth, fov, img_res):
     Z = root_depth  # Depth remains unchanged
 
     return X, Y, Z
+
+# get the highest frame of the saved DSGs
+def get_highest_saved_dsgs(episode_dir:str) -> int:
+    dsgs = [x for x in os.listdir(f"{episode_dir}/") if x.startswith("DSGs_")]
+    dsg_ints = [int(x.split("_")[1].split(".")[0]) for x in dsgs]
+    if len(dsg_ints) == 0:
+        return -1, ()
+    max_dsg_i = dsg_ints.index(max(dsg_ints))
+    return dsg_ints[max_dsg_i], dsgs[max_dsg_i]

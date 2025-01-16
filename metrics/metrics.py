@@ -11,7 +11,7 @@ def smcc(state_1:list, state_2:list) -> float:
     :return: The SMCC between the two states.
     """
     if len(state_1) != len(state_2):
-        raise ValueError("The two states must have the same number of nodes.")
+        raise ValueError("The two states must have the same number of classes and nodes.")
     if len(state_1) == 0:
         return 0
     
