@@ -219,7 +219,7 @@ def __get_objects_in_rooms__(g={}):
     if g == {}:
         _, g = comm.environment_graph() # get the environment graph
     rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
-    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if __node_is_grabbable__(x)}
+    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if utils.__node_is_grabbable__(x)}
     edges = {x["from_id"] : x for x in g["edges"] if x["relation_type"] == "INSIDE" and x["from_id"] in objects and x["to_id"] in rooms}
     objects_in_rooms = {room_id : [objects[edge["from_id"]] for edge in edges.values() if edge["to_id"] == room_id] for room_id in rooms}
     return rooms, objects, objects_in_rooms, g
