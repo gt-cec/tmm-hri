@@ -28,7 +28,7 @@ object_classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washi
 
 save_dir = "visualization_perception"
 
-def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=False, save_dsgs=None):
+def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=False, use_saved_pkl=False, save_dsgs=None):
     # validate episode_dir
     episode_name = episode_dir.split("/")[-1]
 
@@ -37,16 +37,21 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
 
     # get the ground truth color map, used for ground truth semantics and to initialize the scene
     with open(f"{episode_dir}/episode_info.txt") as f:
-        gt_semantic_colormap = ast.literal_eval(f.readlines()[3])
-        classes = sorted(list(set([gt_semantic_colormap[k][1] for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in object_classes])) + ["human"])  # get the classes that are in the colormap
+        gt_instance_colormap = ast.literal_eval(f.readlines()[3])
+        gt_instance_colormap = {str([round(float(x)) for x in k.split(",")]): v for k, v in gt_instance_colormap.items()}  # filter out classes that are not in the object classes
+        classes = sorted(list(set([gt_instance_colormap[k][1] for k in gt_instance_colormap if gt_instance_colormap[k][1] in object_classes])) + ["human"])  # get the classes that are in the colormap
         class_to_class_id = {o : i for i, o in enumerate(classes)}
         class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
+
+    for k in gt_instance_colormap:
+        if gt_instance_colormap[k][1] not in object_classes:
+            print(f"Warning: {gt_instance_colormap[k][1]} is not in the object classes, it will be ignored.")
 
     # get the agent poses
     agent_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, agent_id)
 
     # initialize the environment map, note that this is the "we know the starting layout" assumption
-    initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
+    initial_objects = [{"class": gt_instance_colormap[k][1], "x": gt_instance_colormap[k][2][0], "y": gt_instance_colormap[k][2][2], "z": gt_instance_colormap[k][2][1]} for k in gt_instance_colormap if gt_instance_colormap[k][1] in classes]  # get the original objects
 
     # initialize the models
     pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
@@ -74,7 +79,7 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
 
         # update the robot's mental model
         # if using ground truth, get the detected objects directly from the simulator files
-        if use_gt_semantics and os.path.exists(robot_preprocessed_file_path):
+        if use_gt_semantics and use_saved_pkl and os.path.exists(robot_preprocessed_file_path):
             print("  Using ground truth segmentation and pre-processed pkl:", robot_preprocessed_file_path)
             with open(robot_preprocessed_file_path, "rb") as f:
                 (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
@@ -84,10 +89,10 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
             robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
             robot_mm.update_from_detected_objects(robot_detected_objects)
         elif use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
-            print("  Using ground truth segmentation, no pre-processed pkl was found, will detect from semantic image")
+            print("  Using ground truth segmentation, no pre-processed pkl was found or not using saved pkls, will detect from semantic image")
             gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
             gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB)
-            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, gt_semantic=gt_semantic, gt_instance_colormap=gt_instance_colormap, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
         else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
@@ -117,7 +122,7 @@ if __name__ == "__main__":
     episode_name = "episode_42"
     episode_dir = f"episodes/{episode_name}"
     # get the agent ID
-    agent_id = "0"
+    agent_id = "1"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
     
@@ -126,5 +131,5 @@ if __name__ == "__main__":
     if not os.path.isdir(results_dir):
         os.makedirs(results_dir)
 
-    main(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, save_dsgs=True)
+    main(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=True, save_dsgs=True)
     print("Done.")

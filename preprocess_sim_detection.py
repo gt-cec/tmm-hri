@@ -53,8 +53,6 @@ def process_sim_run(episode_name, episode_dir):
                 previous_upright_pose = agent_poses[frame]
                 print("Walking, so setting previous pose to agent pose", frame)
             detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_poses[frame], seg_masks, depth_image, fov=40)  # set the detected objects' locations
-            # for i in range(len(detected_objects)):
-                # detected_objects[i]["seg mask"] = seg_masks[i]
             human_detections = [x for x in detected_objects if x["class"] == "character"]  # get the human detections so we don't have to get them live
             seg_masks = []  # removing seg masks because they are too large to store
             with open(f"{output_filename}", "wb") as f:

@@ -24,7 +24,7 @@ class PlotPerception():
         self.fig.tight_layout()
 
         # scatter plot for robot mm
-        self.ax_scatter_mm, self.plot_scatter_mm = self.__create_scatter_axis__(231, "Robot Semantic Map")
+        self.ax_scatter_mm, self.plot_scatter_mm = self.__create_scatter_axis__(231, "Semantic Map")
 
         # add map background
         self.ax_scatter_robot_map = self.fig.add_axes(self.ax_scatter_mm.get_position(), frame_on=False, zorder=-1)
@@ -32,10 +32,10 @@ class PlotPerception():
         self.ax_scatter_robot_map.set_axis_off()
 
         # scatter plot for robot detected objects (global)
-        self.ax_detections, self.plot_detections = self.__create_scatter_axis__(232, "Robot Detections (Global)")
+        self.ax_detections, self.plot_detections = self.__create_scatter_axis__(232, "Detections (Global)")
 
         # scatter plot for robot detected objects (local)
-        self.ax_detections_local, self.plot_detections_local = self.__create_scatter_axis__(233, "Robot Detections (Local)", xlim=(-5, 5), ylim=(0, 10))
+        self.ax_detections_local, self.plot_detections_local = self.__create_scatter_axis__(233, "Detections (Local)", xlim=(-5, 5), ylim=(0, 10))
         # draw a black circle of radius 10 centered at 0,0
         self.ax_detections_local.add_patch(matplotlib.patches.Circle((0, 0), 5, edgecolor="grey", facecolor="none", linewidth=1, linestyle="dashed"))
         self.ax_detections_local.add_patch(matplotlib.patches.Circle((0, 0), 10, edgecolor="lightgrey", facecolor="none", linewidth=1, linestyle="dashed"))
@@ -47,10 +47,13 @@ class PlotPerception():
         self.ax_detections_local.add_line(matplotlib.lines.Line2D([0, -1 * dist*math.cos(fov)], [0, dist*math.sin(fov)], color="gainsboro", linewidth=1, linestyle="dashed"))
 
         # robot RGB view axis
-        self.ax_rgb, self.plot_rgb = self.__create_image_axis__(234, "Robot RGB Camera")
+        self.ax_rgb, self.plot_rgb = self.__create_image_axis__(234, "RGB Camera")
 
         # robot depth view axis
-        self.ax_depth, self.plot_depth = self.__create_image_axis__(235, "Robot Depth Camera")
+        self.ax_depth, self.plot_depth = self.__create_image_axis__(235, "Depth Camera")
+
+        # robot object annotation axis
+        self.ax_annotations, self.plot_annotations = self.__create_image_axis__(236, "Object Annotations")
 
         # pose lines
         self.pose_lines = []
@@ -174,12 +177,17 @@ class PlotPerception():
         self.plot_scatter_mm.set_offsets(np.c_[mm_points_x_robot, mm_points_y_robot])
         self.plot_scatter_mm.set_color(plot_colors_robot)
 
+        # remove text annotations from the annotations axis
+        for text in self.ax_annotations.texts:
+            text.remove()
+
         # initialize the detected objects scatter points
         xs_detections, ys_detections, plot_colors_detections = [], [], []
         xs_detections_local, ys_detections_local = [], []
 
         # object detection
         for object in robot_detected_objects:
+            # print all unique values of seg mask
             rgb_robot[object["seg mask"]] = self.class_id_to_color_map[object["class id"]][:3] * 255
             xs_detections.append(object["x"])
             ys_detections.append(object["y"])
@@ -187,6 +195,11 @@ class PlotPerception():
 
             xs_detections_local.append(object["x local"])
             ys_detections_local.append(object["y local"])
+
+            # add a text annotation on the annotations axis
+            # get the average pixel coordinate where the seg mask is True
+            y, x = np.mean(np.where(object["seg mask"] == 1), axis=1)
+            self.ax_annotations.text(x, object["seg mask"].shape[1] - y, object["class"], fontsize=8, color=self.class_id_to_color_map[object["class id"]])
 
         self.plot_detections.set_offsets(np.c_[xs_detections, ys_detections])
         self.plot_detections.set_color(plot_colors_detections)
@@ -241,5 +254,5 @@ class PlotPerception():
         ax.set_aspect('equal')
         ax.set_axis_off()
         ax.set_title(title)
-        plot = ax.imshow(np.zeros((512, 512, 3)))
+        plot = ax.imshow(np.ones((512, 512, 3)) * 255)
         return ax, plot

@@ -144,9 +144,9 @@ def __reset_sim__(seed=42):
     obj_colors = comm.instance_colors()[1]
     _, g = comm.environment_graph()
     for n in g["nodes"]:
-        rgb_color = str(obj_colors[str(n["id"])][0] * 256) + "," + str(obj_colors[str(n["id"])][1] * 256) + "," + str(obj_colors[str(n["id"])][2] * 256)
+        rgb_color = str(obj_colors[str(n["id"])][0] * 255) + "," + str(obj_colors[str(n["id"])][1] * 255) + "," + str(obj_colors[str(n["id"])][2] * 255)
         instance_colormap[rgb_color] = (n["id"], n["class_name"], n["bounding_box"]["center"])
-    return instance_colormap
+    return instance_colormap, obj_colors
 
 def __object_of_min_dist__(loc, objects):
     min_dist = float("infinity")
@@ -234,8 +234,11 @@ if __name__ == "__main__":
         episode_name = f"episode_{seed}"
         print("Starting", episode_name, output_folder + "/" + episode_name)
         print("Resetting sim...")
-        instance_colormap = __reset_sim__(seed=seed)  # reload the simulator
+        instance_colormap, object_colors = __reset_sim__(seed=seed)  # reload the simulator
+        with open("debug.pkl", "wb") as f:
+            pickle.dump((instance_colormap, object_colors), f)
         print("Sim reset! Walking through household now.")
+        input()
         g = comm.environment_graph()[1]
         with open("episodes/{episode_name}/starting_graph.pkl", "wb") as f:
             pickle.dump(g, f)

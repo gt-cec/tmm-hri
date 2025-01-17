@@ -78,7 +78,6 @@ def detect(image, classes, threshold=0.1, save_name=None):
                         objects[object_idx_by_class_id[class_id][object_idx_1]] = None
     objects = [x for x in objects if x is not None]  # remove the objects we filtered out
 
-
     if False and save_name is not None:
         image = Image.fromarray(image)
         draw = ImageDraw.Draw(image)
@@ -92,20 +91,40 @@ def detect(image, classes, threshold=0.1, save_name=None):
 
     return objects, image
 
+def get_closest_match(color, gt_instances_color_map):
+    closest_match = None
+    closest_match_dist = 1000000
+    dists = []
+    for k in gt_instances_color_map:
+        instance_color = k[0]
+        instance_class = k[1]
+        dist = ((color[0] - instance_color[0]) ** 2 + (color[1] - instance_color[1]) ** 2 + (color[2] - instance_color[2]) ** 2) ** 0.5
+        if dist < closest_match_dist:
+            closest_match = instance_color
+            closest_match_dist = dist
+        dists.append((dist, instance_class))
+    return closest_match, closest_match_dist, sorted(dists)
+
 # processes a ground truth instance map and color map to get objects, can filter in classes
 def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes=[], class_to_class_id=[]):
-    gt_rounded_colors_to_actual_colors = {str([int(float(x)) for x in k.split(",")]) : k for k in gt_instances_color_map}
     objects = []  # objects detected
     segments = np.empty(gt_instances_image.shape[:2])
     segments = segments[np.newaxis, ...]
-    unique_colors = np.unique(gt_instances_image.reshape(-1, gt_instances_image.shape[-1]), axis=0)
+    unique_colors = np.unique(gt_instances_image.reshape(-1, gt_instances_image.shape[-1]), axis=0)  # unique colors in the image
     for color_unique in unique_colors:
-        color_unique_reformatted = f"[{str(color_unique[0])}, {str(color_unique[1])}, {str(color_unique[2])}]"
-        if color_unique_reformatted not in gt_rounded_colors_to_actual_colors:  # catch colors not in the ground truth colors
+        color_key = str(list(color_unique))
+        # print("##", color_unique_reformatted, gt_instances_color_map)
+        if color_key not in gt_instances_color_map:  # catch colors not in the ground truth colors
+            closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_instances_color_map[x][1]) for x in gt_instances_color_map])
+            if closest_match_dist < 2:
+                print("MATCHED", color_key, closest_match, closest_match_dist, gt_instances_color_map[str(closest_match)], dists)
+                color_key = str(list(closest_match))
+            else:
+                print("MISSING", color_key, closest_match, closest_match_dist)
+                continue
+        if classes != [] and gt_instances_color_map[color_key][1] not in classes:  # catch classes that are not in the filter in list
             continue
-        color_actual = gt_rounded_colors_to_actual_colors[color_unique_reformatted]  # set to the keys of the ground truth instances
-        if classes != [] and gt_instances_color_map[color_actual][1] not in classes:  # catch classes that are not in the filter in list
-            continue
+        print("DETECTED", gt_instances_color_map[color_key][1])
         segment_2d = np.all(gt_instances_image[:,:] == color_unique, axis=-1)
         segment = segment_2d[np.newaxis, ...]
         true_indices = np.argwhere(segment_2d)
@@ -114,7 +133,7 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
             max_coords = true_indices.max(axis=0)
             box = np.array((min_coords, max_coords))
             segments = np.concatenate((segments, segment), axis=0)
-            obj_class = gt_instances_color_map[color_actual][1]
+            obj_class = gt_instances_color_map[color_key][1]
             objects.append({
                 "class": obj_class,
                 "class id": class_to_class_id[obj_class] if class_to_class_id != [] else classes.index(obj_class) if classes != [] else -1,
