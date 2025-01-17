@@ -46,6 +46,7 @@ def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_o
         horz_angle = (avg_col - seg_masks[i].shape[1] / 2) / seg_masks[i].shape[1] * fov  # get angle left/right from center
         vert_angle = (avg_row - seg_masks[i].shape[0] / 2) / seg_masks[i].shape[0] * fov  # get angle up/down from center
         x_pos_local = math.sin(horz_angle) * dist
+        y_pos_local = math.cos(horz_angle) * dist
         z_pos_local = math.sin(vert_angle) * dist
         direction = agent_pose[1] / np.linalg.norm(agent_pose[1])  # forward vector
         pose_horz_angle = math.atan2(direction[1], direction[0])  # for the pose, z is horz plan up (y), x is horz plan right (x)
@@ -54,7 +55,9 @@ def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_o
         y_pos_global = agent_pose[0][1] + math.sin(pose_horz_angle - horz_angle) * dist
         z_pos_global = agent_pose[0][2] + math.sin(pose_vert_angle - vert_angle) * dist  # in the future, should use head instead for eye vert
         detected_objects[i]["x"] = float(x_pos_global)
+        detected_objects[i]["x local"] = float(x_pos_local)
         detected_objects[i]["y"] = float(y_pos_global)
+        detected_objects[i]["y local"] = float(y_pos_local)
         detected_objects[i]["z"] = float(z_pos_global)
         # detected_objects[i]["seg mask"] = seg_masks[i]
     return detected_objects
@@ -144,9 +147,22 @@ def calculate_rw_coordinates(root_2d, root_depth, fov, img_res):
 
 # get the highest frame of the saved DSGs
 def get_highest_saved_dsgs(episode_dir:str) -> int:
-    dsgs = [x for x in os.listdir(f"{episode_dir}/") if x.startswith("DSGs_")]
+    dsgs = [x for x in os.listdir(f"{episode_dir}/DSGs") if x.startswith("DSGs_")]
     dsg_ints = [int(x.split("_")[1].split(".")[0]) for x in dsgs]
     if len(dsg_ints) == 0:
         return -1, ()
     max_dsg_i = dsg_ints.index(max(dsg_ints))
     return dsg_ints[max_dsg_i], dsgs[max_dsg_i]
+
+# decide whether a node is applicable or not
+def __node_is_grabbable__(n:dict, ignore_objects=(), filter_grabbable=True) -> bool:
+    """
+    Determines whether a node is a grabbable object.
+    """
+    if n["category"] != "Props":
+        return False
+    if filter_grabbable and "GRABBABLE" not in n["properties"]:
+        return False
+    if n["class_name"] in ignore_objects:
+        return False
+    return True

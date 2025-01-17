@@ -16,8 +16,8 @@ def smcc(state_1:list, state_2:list) -> float:
         return 0
     
     summed_cost = 0
-    for i in range(len(state_1)):
-        summed_cost += min_cost_between_sets(state_1[i], state_2[i])
+    for class_name in state_1:
+        summed_cost += min_cost_between_sets(state_1[class_name], state_2[class_name])
     return summed_cost
 
 

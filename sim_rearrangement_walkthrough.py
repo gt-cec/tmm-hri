@@ -5,7 +5,7 @@ import glob
 from PIL import Image
 import random, threading, time, subprocess, datetime, os, pathlib
 import platform, math
-import pickle
+import pickle, utils
 
 comm = None
 random.seed(datetime.datetime.now().timestamp())
@@ -77,7 +77,7 @@ def __randomize_object_locations__(g:dict) -> dict:
     
     # get the positions of the objects
     for n in g["nodes"]:
-        if not __node_is_grabbable__(n):
+        if not utils.__node_is_grabbable__(n, ignore_objects=ignore_objects):
             continue
         positions_ids.append(n["id"])
         positions_positions.append(n["obj_transform"]["position"])
@@ -112,19 +112,6 @@ def __randomize_object_locations__(g:dict) -> dict:
                 g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
                 break
     return g
-
-# decide whether a node is applicable or not
-def __node_is_grabbable__(n:dict) -> bool:
-    """
-    Determines whether a node is a grabbable object.
-    """
-    if n["category"] != "Props":
-        return False
-    if "GRABBABLE" not in n["properties"]:
-        return False
-    if n["class_name"] in ignore_objects:
-        return False
-    return True
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__(seed=42):
