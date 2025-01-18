@@ -22,8 +22,8 @@ room_points = {
 
 def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
     num_traversed_rooms = 0
-    room_ids = list(rooms.keys())
     rooms, _, objects_in_rooms, _ = __get_objects_in_rooms__()
+    room_ids = list(rooms.keys())
     for i in range(len(rooms)):
         target_objects, success, sim_failure = __sim_action__("walk", room_points[rooms[room_ids[i]][1]], list(objects_in_rooms[room_ids[i]]), output_folder=output_folder, file_name_prefix=file_name_prefix)
         if sim_failure:
@@ -234,6 +234,8 @@ if __name__ == "__main__":
         episode_name = f"episode_{seed}"
         print("Starting", episode_name, output_folder + "/" + episode_name)
         print("Resetting sim...")
+        # make episode directory if it doesn't exist
+        pathlib.Path(f"episodes/{episode_name}").mkdir(parents=True, exist_ok=True)
         instance_colormap, object_colors, g = __reset_sim__(seed=seed)  # reload the simulator
         with open(f"episodes/{episode_name}/color_info.pkl", "wb") as f:
             pickle.dump((instance_colormap, object_colors, g), f)
