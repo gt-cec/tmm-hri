@@ -115,16 +115,16 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
         color_key = str(list(color_unique))
         # print("##", color_unique_reformatted, gt_instances_color_map)
         if color_key not in gt_instances_color_map:  # catch colors not in the ground truth colors
-            closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_instances_color_map[x][1]) for x in gt_instances_color_map])
+            closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_instances_color_map[x]["class"]) for x in gt_instances_color_map])
             if closest_match_dist < 2:
                 print("MATCHED", color_key, closest_match, closest_match_dist, gt_instances_color_map[str(closest_match)], dists)
                 color_key = str(list(closest_match))
             else:
                 print("MISSING", color_key, closest_match, closest_match_dist)
                 continue
-        if classes != [] and gt_instances_color_map[color_key][1] not in classes:  # catch classes that are not in the filter in list
+        if classes != [] and gt_instances_color_map[color_key]["class"] not in classes:  # catch classes that are not in the filter in list
             continue
-        print("DETECTED", gt_instances_color_map[color_key][1])
+        print("DETECTED", gt_instances_color_map[color_key]["class"])
         segment_2d = np.all(gt_instances_image[:,:] == color_unique, axis=-1)
         segment = segment_2d[np.newaxis, ...]
         true_indices = np.argwhere(segment_2d)
@@ -133,7 +133,7 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
             max_coords = true_indices.max(axis=0)
             box = np.array((min_coords, max_coords))
             segments = np.concatenate((segments, segment), axis=0)
-            obj_class = gt_instances_color_map[color_key][1]
+            obj_class = gt_instances_color_map[color_key]["class"]
             objects.append({
                 "class": obj_class,
                 "class id": class_to_class_id[obj_class] if class_to_class_id != [] else classes.index(obj_class) if classes != [] else -1,

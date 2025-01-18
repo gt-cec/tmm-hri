@@ -3,6 +3,7 @@
 import numpy as np
 import ast, math, os
 import cv2
+import pickle
 
 def compute_mean_depth(seg_pixel_locations, depth_map):
     """
@@ -166,3 +167,25 @@ def __node_is_grabbable__(n:dict, ignore_objects=(), filter_grabbable=True) -> b
     if n["class_name"] in ignore_objects:
         return False
     return True
+
+def load_colormap(episode_name:str, episode_dir:str="episodes"):
+    (_, object_colors, g) = pickle.load(open(f"{episode_dir}/{episode_name}/color_info.pkl", "rb"))
+
+    # node_ids = {}
+    color_to_object_info = {}
+    for node in g["nodes"]:
+        color = [round(float(x) * 255) for x in object_colors[str(node["id"])]]
+        # node_ids[node["id"]] = {
+        #     "class": node["class_name"],
+        #     "id": node["id"],
+        #     "color": [round(float(x) * 255) for x in object_colors[str(node["id"])]]
+        # }
+        color_to_object_info[str(color)] = {
+            "class": node["class_name"],
+            "id": node["id"],
+            "x": node["bounding_box"]["center"][0],
+            "y": node["bounding_box"]["center"][1],
+            "z": node["bounding_box"]["center"][2]
+        }
+    
+    return color_to_object_info

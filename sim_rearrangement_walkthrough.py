@@ -235,12 +235,11 @@ if __name__ == "__main__":
         print("Starting", episode_name, output_folder + "/" + episode_name)
         print("Resetting sim...")
         instance_colormap, object_colors, g = __reset_sim__(seed=seed)  # reload the simulator
-        with open("debug.pkl", "wb") as f:
+        with open(f"episodes/{episode_name}/color_info.pkl", "wb") as f:
             pickle.dump((instance_colormap, object_colors, g), f)
         print("Sim reset! Walking through household now.")
-        input()
         g = comm.environment_graph()[1]
-        with open("episodes/{episode_name}/starting_graph.pkl", "wb") as f:
+        with open(f"episodes/{episode_name}/starting_graph.pkl", "wb") as f:
             pickle.dump(g, f)
         print("Starting graph saved.")
         res, num_traversed_rooms = walkthrough_household(output_folder=output_folder, file_name_prefix=episode_name)  # run the pick/place sim
