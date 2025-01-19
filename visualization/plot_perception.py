@@ -117,6 +117,8 @@ class PlotPerception():
                 line.set_alpha(alpha - 0.1)  # decrease alpha
 
         for o in robot_mm.dsg.objects:  # robot mental model objects
+            if robot_mm.dsg.objects[o]["class"] not in self.class_to_class_id:
+                continue
             mm_points_x_robot.append(robot_mm.dsg.objects[o]["x"])
             mm_points_y_robot.append(robot_mm.dsg.objects[o]["y"])
             plot_colors_robot.append(self.class_id_to_color_map[self.class_to_class_id[robot_mm.dsg.objects[o]["class"]]])

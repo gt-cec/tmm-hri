@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from transformers import Owlv2Processor, Owlv2ForObjectDetection
 import os
+import utils
 import sys
 
 # set device to cuda if cuda is available
@@ -106,25 +107,26 @@ def get_closest_match(color, gt_instances_color_map):
     return closest_match, closest_match_dist, sorted(dists)
 
 # processes a ground truth instance map and color map to get objects, can filter in classes
-def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes=[], class_to_class_id=[]):
+def detect_from_ground_truth(gt_instances_image, gt_class_image, gt_class_colormap, classes=[], class_to_class_id=[]):
     objects = []  # objects detected
     segments = np.empty(gt_instances_image.shape[:2])
     segments = segments[np.newaxis, ...]
     unique_colors = np.unique(gt_instances_image.reshape(-1, gt_instances_image.shape[-1]), axis=0)  # unique colors in the image
     for color_unique in unique_colors:
-        color_key = str(list(color_unique))
-        # print("##", color_unique_reformatted, gt_instances_color_map)
-        if color_key not in gt_instances_color_map:  # catch colors not in the ground truth colors
-            closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_instances_color_map[x]["class"]) for x in gt_instances_color_map])
-            if closest_match_dist < 2:
-                print("MATCHED", color_key, closest_match, closest_match_dist, gt_instances_color_map[str(closest_match)], dists)
+        # mask the instance
+        mask = np.all(gt_instances_image[:,:] == color_unique, axis=-1)
+        # get the color of the class image at the mask
+        class_color = [int(x) for x in utils.get_mode(gt_class_image[mask])]
+        color_key = str(class_color)
+        # print("##", gt_class_colormap)
+        if color_key not in gt_class_colormap:  # catch colors not in the ground truth colors
+            closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_class_colormap[x]) for x in gt_class_colormap])
+            if closest_match_dist < 10:
                 color_key = str(list(closest_match))
             else:
-                print("MISSING", color_key, closest_match, closest_match_dist)
                 continue
-        if classes != [] and gt_instances_color_map[color_key]["class"] not in classes:  # catch classes that are not in the filter in list
+        if classes != [] and gt_class_colormap[color_key] not in classes:  # catch classes that are not in the filter in list
             continue
-        print("DETECTED", gt_instances_color_map[color_key]["class"])
         segment_2d = np.all(gt_instances_image[:,:] == color_unique, axis=-1)
         segment = segment_2d[np.newaxis, ...]
         true_indices = np.argwhere(segment_2d)
@@ -133,7 +135,7 @@ def detect_from_ground_truth(gt_instances_image, gt_instances_color_map, classes
             max_coords = true_indices.max(axis=0)
             box = np.array((min_coords, max_coords))
             segments = np.concatenate((segments, segment), axis=0)
-            obj_class = gt_instances_color_map[color_key]["class"]
+            obj_class = gt_class_colormap[color_key]
             objects.append({
                 "class": obj_class,
                 "class id": class_to_class_id[obj_class] if class_to_class_id != [] else classes.index(obj_class) if classes != [] else -1,

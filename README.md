@@ -97,6 +97,8 @@ Note: VirtualHome is prone to failing due to timeouts, we have found success by 
 
 The video frames will be located in `./Output/human/{CHAR}`. Each frame has an RGB image and a depth image, and the folder contans a `pd_human.txt` file (pose data for each frame) and a script `ftaa_human.txt` of the character's actions.
 
+**NOTE:** VirtualHome has no mechanism for getting the class labels of the `seg_class` output images, which must be reconstructed using the `seg_inst` images and the known object ID -> instance color map from the simulator. HOWEVER, the instance color map is not 1:1 -- multiple object classes can and do share an instance color. In addition, classes can have multiple colors in the `seg_class` images. Therefore some guesswork must be done to figure out the class colors. The first time an episode is run, a function `load_colormap()` goes through all the frames to try and match the instances to class colors. Where conflicts exist, the user (you) is asked to resolve them. Respond to the text prompt with the correct class, and press any key on the window that pops up.
+
 #### Cleaning Up
 
 Cleaning Up has two agents rearrange objects in the household over a long time duration. The changing environment allows for evaluation on maintaining estimates of belief states over time. Agents follow a state machine where they simultaneously go to a random object, pick it up, and place it on a different surface. Due to limitations of VirtualHome, we were unable to get episodes to last longer than ~30 pick/place cycles, or around 20 minutes of runtime.

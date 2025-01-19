@@ -168,24 +168,114 @@ def __node_is_grabbable__(n:dict, ignore_objects=(), filter_grabbable=True) -> b
         return False
     return True
 
+def get_mode(img):
+    """
+    Returns the mode pixel in an image, from https://stackoverflow.com/questions/43826089
+    """
+    unq,count = np.unique(img.reshape(-1,img.shape[-1]), axis=0, return_counts=True)
+    return unq[count.argmax()]
+
 def load_colormap(episode_name:str, episode_dir:str="episodes"):
+    """
+    Generates and loads the color map.
+
+    Args:
+        episode_name (str): Name of the episode.
+        episode_dir (str): Directory where the episode is stored.
+
+    Returns:
+        dict: Map from color to object class.
+    """
     (_, object_colors, g) = pickle.load(open(f"{episode_dir}/{episode_name}/color_info.pkl", "rb"))
+    ignore_classes = ("floor", "wall", "curtains", "ceiling", "bedroom", "kitchencabinet", "nightstand", "washingmachine", "towelrack", "bathtub", "stall", "toilet", "faucet", "chair", "bed", "pillow", "sink", "bookshelf", "fridge", "sofa", "kitchencounterdrawer", "door", "kitchentable", "bathroomcounter", "bathroomcabinet", "window", "stove", "ceilinglamp", "desk", "closet", "tablelamp", "coffeetable", "bathroom", "livingroom", "stovefan", "powersocket", "lightswitch", "wallshelf", "kitchen", "bench", "rug", "walllamp", "photoframe", "wallpictureframe", "tvstand")
+
+    initial_objects = []
 
     # node_ids = {}
-    color_to_object_info = {}
-    for node in g["nodes"]:
+    inst_color_to_candidate_classes = {}
+    for i in range(len(g["nodes"])):
+        node = g["nodes"][i]
         color = [round(float(x) * 255) for x in object_colors[str(node["id"])]]
-        # node_ids[node["id"]] = {
-        #     "class": node["class_name"],
-        #     "id": node["id"],
-        #     "color": [round(float(x) * 255) for x in object_colors[str(node["id"])]]
-        # }
-        color_to_object_info[str(color)] = {
+        if node["class_name"] in ignore_classes:
+            continue
+        if str(color) not in inst_color_to_candidate_classes:
+            inst_color_to_candidate_classes[str(color)] = []
+        inst_color_to_candidate_classes[str(color)].append(node["class_name"])
+        initial_objects.append({
             "class": node["class_name"],
             "id": node["id"],
-            "x": node["bounding_box"]["center"][0],
-            "y": node["bounding_box"]["center"][1],
-            "z": node["bounding_box"]["center"][2]
-        }
+            "x": node["bounding_box"]["center"][0],  # east
+            "y": node["bounding_box"]["center"][2],  # north
+            "z": node["bounding_box"]["center"][1]   # vertical
+        })
+        print("adding", "raw", object_colors[str(node["id"])], "affixed", color, "info", inst_color_to_candidate_classes[str(color)])
+    for color in inst_color_to_candidate_classes:
+        print("Color", color, "Classes", inst_color_to_candidate_classes[color])
+    # load the episode's class color map if it exists
+    if os.path.exists(f"{episode_dir}/{episode_name}/handcrafted_colormap.txt"):
+        with open(f"{episode_dir}/{episode_name}/handcrafted_colormap.txt") as f:
+            class_color_to_object_class = ast.literal_eval(f.read())
+    elif os.path.exists(f"{episode_dir}/{episode_name}/class_colormap.pkl"):
+        with open(f"{episode_dir}/{episode_name}/class_colormap.pkl", "rb") as f:
+            class_color_to_object_class = pickle.load(f)
+    else:
+        print("Creating class color map, this is not provided from virtualhome so you will have to manually verify conflicts.")
+        class_color_to_object_class = {}
+        # load each frame and get the color map
+        for frame in sorted([x for x in os.listdir(f"{episode_dir}/{episode_name}/0/") if x.startswith("Action") and x.endswith("seg_inst.png")]):
+            # get the instance image and the class image
+            print("Parsing frame", frame)
+            frame_inst = cv2.imread(f"{episode_dir}/{episode_name}/0/{frame}")
+            frame_inst = cv2.cvtColor(frame_inst, cv2.COLOR_BGR2RGB)
+            frame_class = cv2.imread(f"{episode_dir}/{episode_name}/0/{frame.replace('seg_inst', 'seg_class')}")
+            frame_class = cv2.cvtColor(frame_class, cv2.COLOR_BGR2RGB)
+            # get the unique colors in the instance image
+            unique_colors = np.unique(frame_inst.reshape(-1, frame_inst.shape[2]), axis=0)
+            # for each unique color, get the class color of that region
+            for color in unique_colors:
+                # get the mask of the object
+                mask = np.all(frame_inst == color, axis=-1)
+                # ignore if there are less than 20 pixels in the mask
+                if mask.sum() < 100:
+                    continue
+                # get the unique colors in the instance/class images masked
+                frame_inst_mode = get_mode(frame_inst[mask])
+                inst_color = str(list([int(x) for x in frame_inst_mode]))
+                
+                frame_class_mode = get_mode(frame_class[mask])
+                class_color = str(list([int(x) for x in frame_class_mode]))
+                
+                # if the instance color is not in the map, it's an ignore object, so continue
+                if inst_color not in inst_color_to_candidate_classes:
+                    continue
+
+                # if the class color already exists, continue
+                if str(class_color) in class_color_to_object_class:
+                    continue
+                # elif there is only one candidate class, use that
+                elif len(inst_color_to_candidate_classes[str(inst_color)]) == 1:
+                    obj = inst_color_to_candidate_classes[str(inst_color)][0]
+                    print("Only one candidate")
+                # otherwise prompt the user to select the candidate class
+                else:
+                    print("class color", class_color, "all", class_color_to_object_class)
+                    print("Frame", frame, "Select the class for the object with color", str(class_color), "from the following options:")
+                    for i, obj in enumerate(inst_color_to_candidate_classes[str(inst_color)]):
+                        print(i, obj)
+                    # display the frame with a red box around the object
+                    frame_inst[mask] = [255, 255, 255]
+                    cv2.imshow("Select the class for the object", frame_inst)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    class_idx = int(input("Enter the number of the class: "))
+                    obj = inst_color_to_candidate_classes[str(inst_color)][class_idx]
+                    inst_color_to_candidate_classes[str(inst_color)].pop(class_idx)
+                # add the color to the dictionary
+                class_color_to_object_class[str(class_color)] = obj
+                print("Adding color mapping", str(class_color), obj)
+
+        # save the class colormap pickle file
+        with open(f"{episode_dir}/{episode_name}/class_colormap.pkl", "wb") as f:
+            pickle.dump(class_color_to_object_class, f)
     
-    return color_to_object_info
+    return class_color_to_object_class, initial_objects

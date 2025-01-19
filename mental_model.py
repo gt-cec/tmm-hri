@@ -20,20 +20,20 @@ class MentalModel:
 
     # updates the DSG from a known pose and RGBD image
     # Coordinate Frame: x (right), y (forward), z (up)
-    def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, class_to_class_id=[], depth_classes=[], gt_semantic=None, gt_instance_colormap=None, seg_threshold=0.1, seg_save_name=None, depth_test=None):
+    def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, class_to_class_id=[], depth_classes=[], gt_class_image=None, gt_instance_image=None, gt_class_colormap=None, seg_threshold=0.1, seg_save_name=None, depth_test=None):
         # verify types
         human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
 
         # check if given GT semantics
-        assert gt_semantic is None or gt_semantic is not None and gt_instance_colormap is not None, "A ground truth image was provided, however a colormap was not! Please include a colormap."
+        assert gt_class_image is None or gt_class_image is not None and gt_class_colormap is not None, "A ground truth image was provided, however a colormap was not! Please include a colormap."
 
-        have_gt_detections = gt_semantic is not None and gt_instance_colormap is not None  # flag for if we have the ground truth detections
+        have_gt_detections = gt_class_image is not None and gt_class_colormap is not None  # flag for if we have the ground truth detections
         detected_humans, depth_detected_humans, filtered_detected_humans = [], [], []  # initialize these variables as they are returned
 
         # if we have GT detections, parse them into the objects
         if have_gt_detections:
             print("    Using object detection from ground truth information!")
-            detected_objects, object_seg_masks = detect.detect_from_ground_truth(gt_semantic, gt_instance_colormap, classes=classes, class_to_class_id=class_to_class_id)
+            detected_objects, object_seg_masks = detect.detect_from_ground_truth(gt_instance_image, gt_class_image, gt_class_colormap, classes=classes, class_to_class_id=class_to_class_id)
             rgb_detected_humans = None
             depth_detected_humans = None
             for i in range(len(detected_objects)):
