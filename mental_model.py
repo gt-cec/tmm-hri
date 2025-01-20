@@ -42,6 +42,7 @@ class MentalModel:
         else:
             # if we already processed this frame, load the pre-processed data
             if seg_save_name is not None and os.path.exists(f"{seg_save_name}_detections.pkl"):
+                print("    Frame has already been processed, using the saved detection information.")
                 with open(f"{seg_save_name}_detections.pkl", "rb") as f:
                     detected_objects, detected_humans, object_seg_masks = pickle.load(f)
                 rgb_detected_humans = None
@@ -87,6 +88,7 @@ class MentalModel:
                 if seg_save_name is not None:
                     with open(f"{seg_save_name}_detections.pkl", "wb") as f:
                         pickle.dump((detected_objects, detected_humans, object_seg_masks), f)
+                    print(f"    Saved the detected objects to {seg_save_name}_detections.pkl.")
 
         # project object locations to the robot's pose
         detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, object_seg_masks, depth, self.fov)

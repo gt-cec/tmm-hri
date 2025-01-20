@@ -133,6 +133,7 @@ def __reset_sim__(seed=42):
     time.sleep(3)
     # randomize the object locations
     g = comm.environment_graph()[1]
+    preshuffle_nodes = [x for x in g["nodes"]]
     g = __randomize_object_locations__(g)
     comm.expand_scene(g)
     time.sleep(3)
@@ -146,7 +147,7 @@ def __reset_sim__(seed=42):
     for n in g["nodes"]:
         rgb_color = str(obj_colors[str(n["id"])][0] * 255) + "," + str(obj_colors[str(n["id"])][1] * 255) + "," + str(obj_colors[str(n["id"])][2] * 255)
         instance_colormap[rgb_color] = (n["id"], n["class_name"], n["bounding_box"]["center"])
-    return instance_colormap, obj_colors, g
+    return instance_colormap, obj_colors, g, preshuffle_nodes
 
 def __object_of_min_dist__(loc, objects):
     min_dist = float("infinity")
@@ -236,9 +237,11 @@ if __name__ == "__main__":
         print("Resetting sim...")
         # make episode directory if it doesn't exist
         pathlib.Path(f"episodes/{episode_name}").mkdir(parents=True, exist_ok=True)
-        instance_colormap, object_colors, g = __reset_sim__(seed=seed)  # reload the simulator
+        instance_colormap, object_colors, g, preshuffle_nodes = __reset_sim__(seed=seed)  # reload the simulator
         with open(f"episodes/{episode_name}/color_info.pkl", "wb") as f:
             pickle.dump((instance_colormap, object_colors, g), f)
+        with open(f"episodes/{episode_name}/preshuffle_nodes.pkl", "wb") as f:
+            pickle.dump(preshuffle_nodes, f)
         print("Sim reset! Walking through household now.")
         g = comm.environment_graph()[1]
         with open(f"episodes/{episode_name}/starting_graph.pkl", "wb") as f:
