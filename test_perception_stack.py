@@ -37,16 +37,13 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
 
     # get the ground truth color map, used for ground truth semantics and to initialize the scene
     color_to_class, initial_objects = utils.load_colormap(episode_name)
-    for o in initial_objects:
-        if o["class"] not in color_to_class.values():
-            print(o["class"])
     classes = sorted(list(set([color_to_class[k] for k in color_to_class if color_to_class[k] in object_classes])) + ["human"])  # get the classes that are in the colormap
     class_to_class_id = {o : i for i, o in enumerate(classes)}
     class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
 
     for k in color_to_class:
         if color_to_class[k] not in object_classes:
-            print(f"Warning: {color_to_class[k]} is not in the object classes, it will be ignored.")
+            print(f"Note: Class {color_to_class[k]} is not in the object classes, it will be ignored.")
 
     # get the agent poses
     agent_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, agent_id)
@@ -78,16 +75,7 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
 
         # update the robot's mental model
         # if using ground truth, get the detected objects directly from the simulator files
-        if use_gt_semantics and use_saved_pkl and os.path.exists(robot_preprocessed_file_path):
-            print("  Using ground truth segmentation and pre-processed pkl:", robot_preprocessed_file_path)
-            with open(robot_preprocessed_file_path, "rb") as f:
-                (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
-                for i in range(len(robot_human_detections)):
-                    robot_human_detections[i]["seg mask"] = np.where(robot_human_detections[i]["seg mask"] == 1)
-                agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location XY, direction)
-            robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
-            robot_mm.update_from_detected_objects(robot_detected_objects)
-        elif use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
+        if use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
             print("  Using ground truth segmentation, no pre-processed pkl was found or not using saved pkls, will detect from semantic image")
             gt_instance_image = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
             gt_instance_image = cv2.cvtColor(gt_instance_image, cv2.COLOR_BGR2RGB)
@@ -123,7 +111,7 @@ if __name__ == "__main__":
     episode_name = "episode_42"
     episode_dir = f"episodes/{episode_name}"
     # get the agent ID
-    agent_id = "1"
+    agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
     

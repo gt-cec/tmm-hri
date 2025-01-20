@@ -164,8 +164,8 @@ def __sim_action__(action:str, char_ids:list=[0,1], object_ids:list=None, surfac
 # pull the objects and surfaces from the graph
 def __get_objects_and_surfaces__():
     _, g = comm.environment_graph() # get the environment graph
-    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
-    surfaces = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
+    objects = {x["id"] : (x["id"], x["class_name"], x["bounding_box"]["center"]) for x in g["nodes"] if x["category"] == "Props" and "GRABBABLE" in x["properties"] and x["class_name"] not in ignore_objects}
+    surfaces = {x["id"] : (x["id"], x["class_name"], x["bounding_box"]["center"], x["category"], x["properties"]) for x in g["nodes"] if x["category"] == "Furniture" and "SURFACES" in x["properties"] and "GRABBABLE" not in x["properties"] and "CAN_OPEN" not in x["properties"] and x["class_name"] not in ignore_surfaces}
     return objects, surfaces, g
 
 # sample two items, choose items that are not close together so the agents don't get stuck 

@@ -13,7 +13,9 @@ def process_sim_run(episode_name, episode_dir):
     print("Reading frame segmentations")
     seg_image = None
     depth_image = None
-    seg_colormap = utils.get_ground_truth_semantic_colormap(episode_dir)
+    # get the ground truth color map, used for ground truth semantics and to initialize the scene
+    color_to_class, _ = utils.load_colormap(episode_name)
+
     for agent in ["0", "1"]:
         feet_locations = [[0,0,0], [0,0,0]]  # locations of the feet so we know when to freeze the pose (when feet aren't moving')
         agent_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, agent)
@@ -26,10 +28,12 @@ def process_sim_run(episode_name, episode_dir):
                 print(f"Frame {file_prefix} has already been processed")
                 continue
             print(f"Processing frame {file_prefix}")
-            seg_image = cv2.imread(f"{file_prefix}_seg_inst.png")
-            seg_image = cv2.cvtColor(seg_image, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
+            gt_instance_image = cv2.imread(f"{file_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+            gt_instance_image = cv2.cvtColor(gt_instance_image, cv2.COLOR_BGR2RGB)
+            gt_class_image = cv2.imread(f"{file_prefix}_seg_class.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+            gt_class_image = cv2.cvtColor(gt_class_image, cv2.COLOR_BGR2RGB)
             depth_image = cv2.imread(f"{file_prefix}_depth.exr", cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:,:,0]  # read depth and pull one channel (2D grayscale)
-            detected_objects, seg_masks = detection.detect.detect_from_ground_truth(seg_image, seg_colormap, classes=[], class_to_class_id=[])
+            detected_objects, seg_masks = detection.detect.detect_from_ground_truth(gt_instance_image, gt_class_image, color_to_class, classes=[], class_to_class_id=[])
             # when the agent grabs something, some bones are closer/further than usual, can use this to ignore these forward vectors as the first person camera does not change orientation during these animations
             h2h = round(utils.dist_sq(agent_poses[frame][3], agent_poses[frame][4]), 3) > .35  # threshold for grabbing
             h2f = round(utils.dist_sq(agent_poses[frame][7], agent_poses[frame][6]), 3) < 2.15  # threshold for grabbing

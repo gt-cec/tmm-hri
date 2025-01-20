@@ -5,7 +5,7 @@ from detection import detect
 from segmentation import segment
 from pose_estimation import pose
 import math, numpy, utils
-import cv2
+import cv2, pickle, os
 
 class MentalModel:
     def __init__(self, pose_detector=None):
@@ -40,42 +40,54 @@ class MentalModel:
                 detected_objects[i]["seg mask"] = object_seg_masks[i,:,:] == 1
         # if we do not have GT detections, run detection through the RGB
         else:
-            # get objects in the scene
-            detected_objects, _ = detect.detect(rgb, classes, seg_threshold, seg_save_name)  # returns detected objects and an RGB debugging image (ignored)
+            # if we already processed this frame, load the pre-processed data
+            if seg_save_name is not None and os.path.exists(f"{seg_save_name}_detections.pkl"):
+                with open(f"{seg_save_name}_detections.pkl", "rb") as f:
+                    detected_objects, detected_humans, object_seg_masks = pickle.load(f)
+                rgb_detected_humans = None
+                depth_detected_humans = None
+            else:
+                # get objects in the scene
+                detected_objects, _ = detect.detect(rgb, classes, seg_threshold)  # returns detected objects and an RGB debugging image (ignored)
 
-            # get humans in the scene
-            rgb_detected_humans, _ = detect.detect(rgb, depth_classes, 0.1, None)
-            for i in range(len(rgb_detected_humans)):
-                rgb_detected_humans[i]["class"] = "human"
-                rgb_detected_humans[i]["class id"] = human_class_id
+                # get humans in the scene
+                rgb_detected_humans, _ = detect.detect(rgb, depth_classes, 0.1)
+                for i in range(len(rgb_detected_humans)):
+                    rgb_detected_humans[i]["class"] = "human"
+                    rgb_detected_humans[i]["class id"] = human_class_id
 
-            # get humans figures using depth, this is used to double check the humans
-            depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
-            depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4, None)  # multiplying depth by *20 makes it a more contrastive image
-            for i in range(len(depth_detected_humans)):  # set all outputs to human
-                depth_detected_humans[i]["class"] = "human"
-                depth_detected_humans[i]["class id"] = human_class_id
+                # get humans figures using depth, this is used to double check the humans
+                depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
+                depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4)  # multiplying depth by *20 makes it a more contrastive image
+                for i in range(len(depth_detected_humans)):  # set all outputs to human
+                    depth_detected_humans[i]["class"] = "human"
+                    depth_detected_humans[i]["class id"] = human_class_id
 
-            # remove the humans from the detected humans that do not overlap with the depth
-            detected_humans = detect.remove_objects_not_overlapping(rgb_detected_humans, depth_detected_humans, overlap_threshold=0.3, classes_to_filter=["human"])
-            
-            # segment the objects
-            object_boxes = [o["box"] for o in detected_objects]
-            human_boxes = [o["box"] for o in detected_humans]
-            seg_masks = segment.segment(rgb, object_boxes + human_boxes)
-            object_seg_masks = seg_masks[:len(object_boxes)]
-            human_seg_masks = seg_masks[len(object_boxes):]
-            for i in range(human_seg_masks.shape[0]):
-                detected_humans[i]["seg mask"] = human_seg_masks[i,:,:]
-            for i in range(object_seg_masks.shape[0]):
-                detected_objects[i]["seg mask"] = object_seg_masks[i,:,:]
+                # remove the humans from the detected humans that do not overlap with the depth
+                detected_humans = detect.remove_objects_not_overlapping(rgb_detected_humans, depth_detected_humans, overlap_threshold=0.3, classes_to_filter=["human"])
+                
+                # segment the objects
+                object_boxes = [o["box"] for o in detected_objects]
+                human_boxes = [o["box"] for o in detected_humans]
+                seg_masks = segment.segment(rgb, object_boxes + human_boxes)
+                object_seg_masks = seg_masks[:len(object_boxes)]
+                human_seg_masks = seg_masks[len(object_boxes):]
+                for i in range(human_seg_masks.shape[0]):
+                    detected_humans[i]["seg mask"] = human_seg_masks[i,:,:]
+                for i in range(object_seg_masks.shape[0]):
+                    detected_objects[i]["seg mask"] = object_seg_masks[i,:,:]
 
-        # get the pose for each human
-        detected_humans = self.get_human_poses_from_rgb_seg_depth_and_detected_humans(rgb, depth, detected_humans, pose)
+                # get the pose for each human
+                detected_humans = self.get_human_poses_from_rgb_seg_depth_and_detected_humans(rgb, depth, detected_humans, pose)
 
-        # make sure the seg mask and detected object dimensions match
-        assert len(detected_objects) == len(object_seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(object_seg_masks)}), one of these modules is misperforming."
-        
+                # make sure the seg mask and detected object dimensions match
+                assert len(detected_objects) == len(object_seg_masks), f"The number of detected objects ({len(detected_objects)}) does not equal the number of the segmentation masks ({len(object_seg_masks)}), one of these modules is misperforming."
+
+                # save detected objects to file
+                if seg_save_name is not None:
+                    with open(f"{seg_save_name}_detections.pkl", "wb") as f:
+                        pickle.dump((detected_objects, detected_humans, object_seg_masks), f)
+
         # project object locations to the robot's pose
         detected_objects = utils.project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, pose, object_seg_masks, depth, self.fov)
         

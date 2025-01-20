@@ -26,53 +26,76 @@ plt.ioff()
 
 map_boundaries = utils.get_map_boundaries("./map_boundaries.png")
 
-def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None, save_dsgs=None):
+def experiment_static_walkabout(episode_dir:str, agent_id="0", use_gt_human_pose=False, use_gt_semantics=False, save_plot=False, show_plot=None, save_dsgs=None):
     # validate episode_dir
-    assert episode_dir is not None, "Missing episode_dir param"
     episode_name = episode_dir.split("/")[-1]
 
     print(f"Running on simulator data, episode: {episode_name}")
-    depth_classes = ["human", "person", "human standing", "person standing", "silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]  # not used for ground truth sim data
 
     # get the ground truth color map, used for ground truth semantics and to initialize the scene
+    color_to_class, initial_objects = utils.load_colormap(episode_name)
+
     with open(f"{episode_dir}/episode_info.txt") as f:
-        gt_semantic_colormap = ast.literal_eval(f.readlines()[3])
         classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass']
-        classes = sorted(list(set([gt_semantic_colormap[k][1] for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes])) + ["human"])  # get the classes that are in the colormap
-        print(classes)
+        classes = sorted(list(set([color_to_class[k] for k in color_to_class if color_to_class[k] in classes])) + ["human"])  # get the classes that are in the colormap
         class_to_class_id = {o : i for i, o in enumerate(classes)}
         class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
+
+    # filter out initial objects that are not in the classes
+    initial_objects = [x for x in initial_objects if x["class"] in classes]
+
+    # initialize the models
+    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
+
+    # initialize the mental models
+    robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
+    gt_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the ground truth human's mental model
+    pred_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the predicted human's mental model
+
+    robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
+    gt_human_mm.initialize(objects=initial_objects, verbose=False)
+    pred_human_mm.initialize(objects=initial_objects, verbose=False)
+
+    # run through the simulation
+    __run_through_simulation__(agent_id,
+                            robot_mm,
+                            gt_human_mm,
+                            pred_human_mm,
+                            episode_dir,
+                            classes,
+                            class_to_class_id,
+                            class_id_to_color_map,
+                            color_to_class,
+                            map_boundaries,
+                            use_gt_human_pose=use_gt_human_pose,
+                            use_gt_semantics=use_gt_semantics,
+                            save_plot=save_plot,
+                            show_plot=show_plot,
+                            save_dsgs=save_dsgs
+                        )
+
+
+def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, episode_dir, classes, class_to_class_id, class_id_to_color_map, color_to_class, depth_classes, map_boundaries, use_gt_human_pose=False, use_gt_semantics=False, start_frame=-1, save_plot=False, show_plot=None, save_dsgs=False):
+    # declare the depth classes
+    depth_classes = ["human", "person", "human standing", "person standing", "silhouette of a person", "silhouette of a human", "silhouette of a person from the side", "silhouette of a human from the side", "silhouette of a person"]  # not used for ground truth sim data
 
     # get the agent poses
     print("Reading agent poses", f"{episode_dir}/{agent_id}/pd_{episode_name}.txt")
     agent_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, "0")
     human_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, "1")
     print("Done reading poses", len(agent_poses))
-
-    # initialize the environment map, note that this is the "we know the starting layout" assumption
-    initial_objects = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
-
-    # initialize the models
-    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
-
-    # initialize the mental models
+    
     # continue from saved if applicable
-    start_frame, end_saved_dsgs = utils.get_highest_saved_dsgs(episode_dir)
-    if start_frame == -1:
-        robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
-        gt_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the ground truth human's mental model
-        pred_human_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the predicted human's mental model
+    start_frame, _ = utils.get_highest_saved_dsgs(episode_dir)
 
-        robot_mm.initialize(objects=initial_objects, verbose=False)  # set the initial environment state
-        gt_human_mm.initialize(objects=initial_objects, verbose=False)
-        pred_human_mm.initialize(objects=initial_objects, verbose=False)
+    if start_frame == -1:
         start_frame = 0
     else:
-        with open(f"{episode_dir}/DSGs_{start_frame}.pkl", "rb") as f:
+        with open(f"{episode_dir}/DSGs/DSGs_{start_frame}.pkl", "rb") as f:
             dsgs = pickle.load(f)
-            robot_mm = dsgs["robot"]
-            gt_human_mm = dsgs["gt human"]
-            pred_human_mm = dsgs["pred human"]
+            robot_mm.dsg = dsgs["robot"]
+            gt_human_mm.dsg = dsgs["gt human"]
+            pred_human_mm.dsg = dsgs["pred human"]
         print(f"Continuing from frame {start_frame}")
         start_frame += 1
 
@@ -92,8 +115,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
         agent_pose = [agent_poses[str(frame_id)][0], agent_poses[str(frame_id)][-1]]
         robot_frame_prefix = f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}_0"
         robot_preprocessed_file_path = f"{robot_frame_prefix}_detected.pkl"
-        human_frame_prefix = f"{episode_dir}/1/Action_{str(frame_id).zfill(4)}_0"
-        human_preprocessed_file_path = f"{human_frame_prefix}_detected.pkl"
+        human_frame_prefix = f"{episode_dir}/{1-int(agent_id)}/Action_{str(frame_id).zfill(4)}_0"
 
         bgr = cv2.imread(f"{robot_frame_prefix}_normal.png")
         robot_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
@@ -102,31 +124,28 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
 
         # update the robot's mental model
         # if using ground truth, get the detected objects directly from the simulator files
-        if use_gt_semantics and os.path.exists(robot_preprocessed_file_path):
-            print("  Using ground truth segmentation and pre-processed pkl:", robot_preprocessed_file_path)
-            with open(robot_preprocessed_file_path, "rb") as f:
-                (agent_pose, robot_detected_objects, _, robot_human_detections) = pickle.load(f)
-                for i in range(len(robot_human_detections)):
-                    robot_human_detections[i]["seg mask"] = np.where(robot_human_detections[i]["seg mask"] == 1)
-                agent_pose = (agent_pose[0], agent_pose[-1])  # agent pose is (hip location XY, direction)
-            robot_detected_objects = [x for x in robot_detected_objects if x["class"] in classes]
-            robot_mm.update_from_detected_objects(robot_detected_objects)
-        elif use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
+        if use_gt_semantics:  # if using ground truth but there is no pre-processed pkl file, process the frame now
             print("  Using ground truth segmentation, no pre-processed pkl was found, defaulting to segmentation network")
-            gt_semantic = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
-            gt_semantic = cv2.cvtColor(gt_semantic, cv2.COLOR_BGR2RGB)
-            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_semantic=gt_semantic, gt_semantic_colormap=gt_semantic_colormap, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
+            gt_instance_image = cv2.imread(f"{robot_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+            gt_instance_image = cv2.cvtColor(gt_instance_image, cv2.COLOR_BGR2RGB)
+            gt_class_image = cv2.imread(f"{robot_frame_prefix}_seg_class.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+            gt_class_image = cv2.cvtColor(gt_class_image, cv2.COLOR_BGR2RGB)
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_instance_image=gt_instance_image, gt_class_image=gt_class_image, gt_class_colormap=color_to_class, seg_threshold=0.4)
         else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
-            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name="box_bgr_" + str(frame_id).zfill(4))
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name=f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}")
         
         # update the ground truth human mental model, requires the ground truth from the simulator
-        if os.path.exists(human_preprocessed_file_path):
-            with open(human_preprocessed_file_path, "rb") as f:
-                (gt_human_pose, human_detected_objects, _, human_human_detections) = pickle.load(f)
-            human_human_detections = (human_human_detections, None, None)  # rgb, depth, filtered
-            human_detected_objects = [x for x in human_detected_objects if x["class"] in classes]
-            gt_human_mm.update_from_detected_objects(human_detected_objects)
+        print("  Updating ground truth human mental model")
+        gt_human_pose = [human_poses[str(frame_id)][0], human_poses[str(frame_id)][-1]]
+        gt_human_instance_image = cv2.imread(f"{human_frame_prefix}_seg_inst.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+        gt_human_instance_image = cv2.cvtColor(gt_human_instance_image, cv2.COLOR_BGR2RGB)
+        gt_human_class_image = cv2.imread(f"{human_frame_prefix}_seg_class.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
+        gt_human_class_image = cv2.cvtColor(gt_human_class_image, cv2.COLOR_BGR2RGB)
+        gt_human_depth = cv2.imread(f"{human_frame_prefix}_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
+        gt_human_depth_1channel = gt_human_depth[:,:,0]
+        gt_human_mm.update_from_rgbd_and_pose(None, gt_human_depth_1channel, gt_human_pose, classes, gt_class_image=gt_human_class_image, gt_instance_image=gt_human_instance_image, gt_class_colormap=color_to_class, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name=f"{episode_dir}/{1-int(agent_id)}/Action_{str(frame_id).zfill(4)}")
+        print("  ...done")
 
         # if the human is visible to the robot, run the trajectory prediction
         objects_visible_to_human = []  # objects that the robot thinks the human can see
@@ -143,7 +162,8 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
             
             # if human has not been seen since before the last frame, predict where the human went since the last view
             if last_saw_human[0] is not None:
-                objects_visible_to_human = prediction.predict.get_objects_visible_from_last_seen(last_saw_human[1][:2], human_location[:2], map_boundaries, robot_mm.dsg, human_fov=gt_human_mm.fov)  # get the visible objects along that path
+                # get objects along the path that the human took
+                objects_visible_to_human, human_trajectory_debug = prediction.predict.get_objects_visible_from_last_seen(last_saw_human[1][:2], human_location[:2], map_boundaries, robot_mm.dsg, human_fov=gt_human_mm.fov, end_direction=robot_human_detections[0][0]["direction"][:2], debug_tag=f"{frame_id}")
                 pred_human_mm.update_from_detected_objects(objects_visible_to_human)  # update the predicted human's mental model
             last_saw_human = (frame_id, human_location)
 
@@ -153,6 +173,7 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
                 bgr = cv2.imread(f"{human_frame_prefix}_normal.png")
                 if bgr is not None:
                     human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
+                    gt_human_pose = [human_poses[str(frame_id)][0], human_poses[str(frame_id)][-1]]
                     vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
@@ -170,12 +191,11 @@ def main(agent_id="0", episode_dir=None, use_gt_human_pose=False, use_gt_semanti
 
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
-    # episode_name = "episode_2024-09-04-16-32_agents_2_run_19"
     episode_name = "episode_42"
     episode_dir = f"episodes/{episode_name}"
     # get the agent ID
     agent_id = "0"
     if len(sys.argv) > 1:
         agent_id = sys.argv[1]
-    main(agent_id=agent_id, episode_dir=episode_dir, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
+    experiment_static_walkabout(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
     print("Done.")

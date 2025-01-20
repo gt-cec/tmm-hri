@@ -3,7 +3,7 @@
 import math
 import itertools
 
-def smcc(state_1:list, state_2:list) -> float:
+def smcc(state_1:list, state_2:list, verbose=False) -> float:
     """
     Calculate the SMCC between two states.
     :param state_1: The first state, of the form [[(x,y), (x,y), ...], [(x,y), (x,y), ...], ...]
@@ -15,9 +15,13 @@ def smcc(state_1:list, state_2:list) -> float:
     if len(state_1) == 0:
         return 0
     
+    num_items = sum([len(x) for x in state_1])
     summed_cost = 0
     for class_name in state_1:
-        summed_cost += min_cost_between_sets(state_1[class_name], state_2[class_name])
+        cost = min_cost_between_sets(state_1[class_name], state_2[class_name]) / num_items
+        summed_cost += cost
+        if verbose:
+            print(f"Class {class_name} cost: {cost} sum: {summed_cost}")
     return summed_cost
 
 

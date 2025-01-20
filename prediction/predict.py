@@ -4,7 +4,22 @@ import math, numpy, cv2, heapq
 from utils import dist_sq
 
 # given a start and goal point, return the objects seen
-def get_objects_visible_from_last_seen(start_location, end_location, map_boundaries, robot_dsg, human_fov, debug_tag=""):
+def get_objects_visible_from_last_seen(start_location, end_location, map_boundaries, robot_dsg, human_fov, end_direction=None, debug_tag=""):
+    """
+    Given the start and end location of a human agent, predict the path and return the objects visible from the path.
+    
+    Args:
+        start_location (list): The last seen location of the human agent as a continuous x/y location.
+        end_location (list): The current location of the human agent as a continuous x/y location.
+        map_boundaries (numpy.ndarray): The map boundaries image, (0,0,0,1) for wall, (0,0,0,0) for empty).
+        robot_dsg (mental_model.MentalModel): The robot's mental model.
+        human_fov (float): The human's field of view.
+        end_direction (list, optional): The direction of the human agent at the end location as a continuous x/y vector (no need to normalize). Defaults to None.
+        debug_tag (str, optional): A tag to add to the map debug image (in "prediction_maps/"). Defaults to "".
+    
+    Returns:
+        list: The objects visible to the human agent.    
+    """
     last = __project_continuous_location_to_map_location__(start_location, map_boundaries)  # get the last seen location of the human in pixel coordinates
     curr = __project_continuous_location_to_map_location__(end_location, map_boundaries)  # get the current location of the human in pixel coordinates
     path, all_neighbors = predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
@@ -15,17 +30,20 @@ def get_objects_visible_from_last_seen(start_location, end_location, map_boundar
         object_locations.append([pos[0], pos[1], i])
         object_index_to_key[i] = o  # store the index of the object for referencing
     object_locations = numpy.array(object_locations)  # convert to numpy array for easier indexing
+    # get the objects visible from the path
     visibility, visible_points = __get_objects_visible_from_path__(robot_dsg, path, map_boundaries, human_fov)  # visibility is [False, True, True, False, ...] for each object, visible_points is for debugging
-    visible_objects = object_locations[visibility]  # only include the visible objects
+    # if a direction is provided, get the objects visible from the last point 
+    if end_direction is not None:
+        visibility, visible_points = __get_objects_visible_from_point__(robot_dsg, curr, end_direction, map_boundaries, human_fov, object_locations=[], visibility=visibility, debug_visible_points=visible_points)
+    visible_objects = object_locations[visibility]
     invisible_objects = object_locations[~numpy.array(visibility)]
-    debug_path(robot_dsg, map_boundaries, path, all_neighbors, visible_objects, visible_points, invisible_objects, human_fov, tag=str(debug_tag))  # save a path png for debugging
+    human_trajectory_debug = debug_path(robot_dsg, map_boundaries, path, all_neighbors, visible_objects, visible_points, invisible_objects, human_fov, tag=str(debug_tag))  # save a path png for debugging
     # organize the visible objects
     objects_visible_to_human = []
     for i, object_is_visible in enumerate(visibility):
         if object_is_visible:
             objects_visible_to_human.append(robot_dsg.objects[object_index_to_key[i]].as_dict()) 
-    return objects_visible_to_human
-
+    return objects_visible_to_human, human_trajectory_debug
 
 def predict_path(previous_location, current_location, map_boundaries):
     # A* planner to predict the human agent's path
@@ -88,7 +106,7 @@ def __get_objects_visible_from_path__(dsg, path, map_image, fov):
     object_locations = numpy.array([[dsg.objects[obj]["x"], dsg.objects[obj]["y"], dsg.objects[obj]["z"]] for obj in dsg.objects])
     for i in range(1, len(path)):
         location = path[i]
-        direction = path[i] - path[i-1] / numpy.linalg.norm(path[i] - path[i-1])
+        direction = (path[i] - path[i-1]) / numpy.linalg.norm(path[i] - path[i-1])
         visibility, debug_visible_points = __get_objects_visible_from_point__(dsg, location, direction, map_image, fov, object_locations, visibility, debug_visible_points)
     return visibility, numpy.array(debug_visible_points)
 
@@ -105,7 +123,13 @@ def __get_objects_visible_from_point__(dsg, location, direction, map_image, fov,
         if visibility[object_idx]:  # if the object is already visible, no need to check again
             continue
         object_is_visible, _visible_points = __object_is_visible_from_point__(location, direction, obj, map_image, fov)
-        debug_visible_points += _visible_points
+        # print data type of the debug_visible_points numpy array
+        if isinstance(debug_visible_points, list):
+            debug_visible_points += _visible_points
+        elif len(debug_visible_points) == 0:
+            debug_visible_points = numpy.array(_visible_points)
+        elif len(_visible_points) > 0:
+            debug_visible_points = numpy.concatenate((debug_visible_points, _visible_points), axis=0)
         if object_is_visible:
             visibility[object_idx] = True
     return visibility, debug_visible_points

@@ -80,7 +80,7 @@ def __randomize_object_locations__(g:dict) -> dict:
         if not utils.__node_is_grabbable__(n, ignore_objects=ignore_objects):
             continue
         positions_ids.append(n["id"])
-        positions_positions.append(n["obj_transform"]["position"])
+        positions_positions.append(n["bounding_box"]["center"])
         positions_names.append(n["class_name"])
 
     # get the objects in each room
@@ -109,7 +109,7 @@ def __randomize_object_locations__(g:dict) -> dict:
         # change the room
         for i in range(len(g["nodes"])):
             if g["nodes"][i]["id"] == id_of_node_to_change:
-                g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
+                g["nodes"][i]["bounding_box"]["center"] = positions_mapping[using_position_of_id][1]
                 break
     return g
 
@@ -218,8 +218,8 @@ def __sim_script__(script:str, output_folder:str="Output/", file_name_prefix:str
 def __get_objects_in_rooms__(g={}):
     if g == {}:
         _, g = comm.environment_graph() # get the environment graph
-    rooms = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if x["category"] == "Rooms"}
-    objects = {x["id"] : (x["id"], x["class_name"], x["obj_transform"]["position"]) for x in g["nodes"] if utils.__node_is_grabbable__(x)}
+    rooms = {x["id"] : (x["id"], x["class_name"], x["bounding_box"]["center"]) for x in g["nodes"] if x["category"] == "Rooms"}
+    objects = {x["id"] : (x["id"], x["class_name"], x["bounding_box"]["center"]) for x in g["nodes"] if utils.__node_is_grabbable__(x)}
     edges = {x["from_id"] : x for x in g["edges"] if x["relation_type"] == "INSIDE" and x["from_id"] in objects and x["to_id"] in rooms}
     objects_in_rooms = {room_id : [objects[edge["from_id"]] for edge in edges.values() if edge["to_id"] == room_id] for room_id in rooms}
     return rooms, objects, objects_in_rooms, g

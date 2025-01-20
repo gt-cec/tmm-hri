@@ -148,6 +148,9 @@ def calculate_rw_coordinates(root_2d, root_depth, fov, img_res):
 
 # get the highest frame of the saved DSGs
 def get_highest_saved_dsgs(episode_dir:str) -> int:
+    # create the DSGs directory if it doesn't exist
+    if not os.path.exists(f"{episode_dir}/DSGs"):
+        os.makedirs(f"{episode_dir}/DSGs")
     dsgs = [x for x in os.listdir(f"{episode_dir}/DSGs") if x.startswith("DSGs_")]
     dsg_ints = [int(x.split("_")[1].split(".")[0]) for x in dsgs]
     if len(dsg_ints) == 0:
@@ -208,9 +211,7 @@ def load_colormap(episode_name:str, episode_dir:str="episodes"):
             "y": node["bounding_box"]["center"][2],  # north
             "z": node["bounding_box"]["center"][1]   # vertical
         })
-        print("adding", "raw", object_colors[str(node["id"])], "affixed", color, "info", inst_color_to_candidate_classes[str(color)])
-    for color in inst_color_to_candidate_classes:
-        print("Color", color, "Classes", inst_color_to_candidate_classes[color])
+        # print("adding", "raw", object_colors[str(node["id"])], "affixed", color, "info", inst_color_to_candidate_classes[str(color)])
     # load the episode's class color map if it exists
     if os.path.exists(f"{episode_dir}/{episode_name}/handcrafted_colormap.txt"):
         with open(f"{episode_dir}/{episode_name}/handcrafted_colormap.txt") as f:

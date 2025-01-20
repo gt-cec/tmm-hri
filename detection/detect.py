@@ -24,7 +24,7 @@ else:
 processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
 model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble").to(torch.device(device))
 
-def detect(image, classes, threshold=0.1, save_name=None):
+def detect(image, classes, threshold=0.1):
     texts = [["" + c for c in classes]]
     inputs = processor(text=texts, images=image, return_tensors="pt").to(torch.device(device))
     with torch.no_grad():
@@ -78,17 +78,6 @@ def detect(image, classes, threshold=0.1, save_name=None):
                     else:
                         objects[object_idx_by_class_id[class_id][object_idx_1]] = None
     objects = [x for x in objects if x is not None]  # remove the objects we filtered out
-
-    if False and save_name is not None:
-        image = Image.fromarray(image)
-        draw = ImageDraw.Draw(image)
-
-        for o in objects:
-            x1, y1, x2, y2 = o["box"]
-            draw.rectangle(xy=((x1, y1), (x2, y2)), outline="red")
-            draw.text(xy=(x1, y1), text=texts[0][label])
-
-        image.save(save_name + ".png")
 
     return objects, image
 

@@ -10,66 +10,83 @@ def load_dsg_data(episode_dir:str) -> dict:
     data = {"frames": {}}
 
     # load the DSG data
-    dsg_files = [x for x in os.listdir(f"{episode_dir}/") if x.startswith("DSGs_")]
+    dsg_files = [x for x in os.listdir(f"{episode_dir}/DSGs") if x.startswith("DSGs_")]
     for dsg_file in dsg_files:
         dsg_i = int(dsg_file.split("_")[1].split(".")[0])
-        with open(f"{episode_dir}/{dsg_file}", "rb") as f:
+        with open(f"{episode_dir}/DSGs/{dsg_file}", "rb") as f:
             data["frames"][dsg_i] = pickle.load(f)
 
     # load the initial object state
-    with open(f"{episode_dir}/episode_info.txt") as f:
-        gt_semantic_colormap = ast.literal_eval(f.readlines()[3])
+    with open(f"{episode_dir}/starting_graph.pkl", "rb") as f:
+        graph = pickle.load(f)
     classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal', 'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush', 'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste', 'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid', 'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream', 'waterglass', 'salmon', 'barsoap', 'character', 'wineglass']
-    classes = sorted(list(set([gt_semantic_colormap[k][1] for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes])) + ["human"])  # get the classes that are in the colormap
-    graph = [{"class": gt_semantic_colormap[k][1], "x": gt_semantic_colormap[k][2][0], "y": gt_semantic_colormap[k][2][2], "z": gt_semantic_colormap[k][2][1]} for k in gt_semantic_colormap if gt_semantic_colormap[k][1] in classes]  # get the original objects
     objects_by_class = {}
-    for node in graph:
-        if node["class"] not in objects_by_class:
-            objects_by_class[node["class"]] = []
-        objects_by_class[node["class"]].append(node)
+    for node in graph["nodes"]:
+        if node["class_name"] not in classes:
+            continue
+        if node["class_name"] not in objects_by_class:
+            objects_by_class[node["class_name"]] = []
+        objects_by_class[node["class_name"]].append({"class": node["class_name"], "x": node["bounding_box"]["center"][0], "y": node["bounding_box"]["center"][2], "z": node["bounding_box"]["center"][1]})
     data["initial"] = objects_by_class
 
     return data
 
-def generate_dsg_metrics():
-    data = load_dsg_data("episodes/episode_42")
+def generate_dsg_metrics(episode_dir:str):
+    data = load_dsg_data(f"{episode_dir}")
     # generate the metrics
     similarities = {}
-    for frame_id in data["frames"]:
-        mm_robot = data["frames"][frame_id]["robot"]
-        mm_human_gt = data["frames"][frame_id]["gt human"]
-        mm_human_pred = data["frames"][frame_id]["pred human"]
+    prev_robot_set = None
+    for frame_id in sorted(data["frames"].keys()):
+        dsg_robot = data["frames"][frame_id]["robot"]
+        dsg_human_gt = data["frames"][frame_id]["gt human"]
+        dsg_human_pred = data["frames"][frame_id]["pred human"]
 
-        robot_set = format_objects_by_class(mm_robot.get_objects_by_class())
-        human_gt_set = format_objects_by_class(mm_human_gt.get_objects_by_class())
-        human_pred_set = format_objects_by_class(mm_human_pred.get_objects_by_class())
+        robot_set = format_objects_by_class(dsg_robot.get_objects_by_class())
+        human_gt_set = format_objects_by_class(dsg_human_gt.get_objects_by_class())
+        human_pred_set = format_objects_by_class(dsg_human_pred.get_objects_by_class())
         initial_set = format_objects_by_class({class_name : data["initial"][class_name] for class_name in data["initial"] if class_name in robot_set})
 
         similarities[frame_id] = {
+            "robot wrt human": metrics.metrics.smcc(robot_set, human_gt_set),
             "robot wrt initial": metrics.metrics.smcc(robot_set, initial_set),
             "human wrt initial": metrics.metrics.smcc(human_gt_set, initial_set),
             "pred wrt human": metrics.metrics.smcc(human_pred_set, human_gt_set),
-            "pred wrt initial": metrics.metrics.smcc(human_pred_set, initial_set),
-            "robot wrt human": metrics.metrics.smcc(robot_set, human_gt_set)
+            "pred wrt initial": metrics.metrics.smcc(human_pred_set, initial_set)
         }
 
-        print(f"Frame {frame_id}: {similarities[frame_id]}")
+        if prev_robot_set is not None:
+            metrics.metrics.smcc(robot_set, prev_robot_set)
+        prev_robot_set = robot_set
 
     # plot the similarities
     frames = sorted(similarities.keys())
     plt.figure()
-    plt.plot(frames, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="Robot wrt Initial")
-    plt.plot(frames, [similarities[frame_id]["robot wrt human"] for frame_id in frames], label="Robot wrt Human GT")
-    plt.plot(frames, [similarities[frame_id]["human wrt initial"] for frame_id in frames], label="Human GT wrt Initial")
-    plt.plot(frames, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="Pred wrt Human GT")
-    plt.plot(frames, [similarities[frame_id]["pred wrt human"] - similarities[frame_id]["human wrt initial"] for frame_id in frames], label="Pred - Human GT")
-    plt.xlabel("Frame")
-    plt.ylabel("SMCC")
-    plt.legend()
-    plt.title("DSG Similarity Metrics")
+    # remove border
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+    # plot the similarities
+    plt.plot(frames, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="★[Pred wrt Human GT] Distance between the inferred and the human's scene graph.", color="#ff1e6b")
+    plt.plot(frames, [similarities[frame_id]["pred wrt initial"] for frame_id in frames], label="[Pred wrt Initial] Drift of the inferred human scene graph.", color="#ff1e6b", linestyle=":")
+    plt.plot(frames, [similarities[frame_id]["robot wrt human"] for frame_id in frames], label="[Robot wrt Human GT] Distance between the robot's and the human's scene graph.", color="#1eb6ff")
+    plt.plot(frames, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="[Robot wrt Initial] Drift of the robot's scene graph.", color="#1eb6ff", linestyle=":")
+    plt.plot(frames, [similarities[frame_id]["human wrt initial"] for frame_id in frames], label="[Human GT wrt Initial] Drift of the human's scene graph.", color="#2e8600", linestyle=":")
+    # set the labels
+    axis_fontsize = 15
+    plt.title("DSG Similarity Metrics: Walking About the House", fontsize=15)
+    plt.xlabel("Frame", fontsize=axis_fontsize)
+    plt.xlim([frames[0], frames[-1]])
+    plt.ylabel("Mean SMCC [m]", fontsize=axis_fontsize)
+    plt.ylim([0, 0.30])
+    # create the grid
     plt.grid()
+    # create the legend
+    legend = plt.legend(framealpha=1, fontsize=7.5, loc="upper left", bbox_to_anchor=(0, 1.02))
+    legend.get_frame().set_linewidth(0)
+    # place the legend at the top of the plot
+    # plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=3)
+
     plt.tight_layout()
-    plt.savefig("dsg_metrics.png")
+    plt.savefig("dsg_metrics.png", dpi=500)
     plt.show()
 
 def format_objects_by_class(objects_by_class:dict) -> list:
@@ -86,4 +103,4 @@ def format_objects_by_class(objects_by_class:dict) -> list:
     return formatted_objects_by_class
 
 if __name__ == "__main__":
-    generate_dsg_metrics()
+    generate_dsg_metrics(episode_dir="episodes/episode_42")
