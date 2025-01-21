@@ -4,7 +4,7 @@ import math, numpy, cv2, heapq
 from utils import dist_sq
 
 # given a start and goal point, return the objects seen
-def get_objects_visible_from_last_seen(start_location, end_location, map_boundaries, robot_dsg, human_fov, end_direction=None, debug_tag=""):
+def get_objects_visible_from_last_seen(start_location, end_location, map_boundaries, robot_dsg, human_fov, end_direction=None, use_gt_human_trajectory=False, gt_human_poses=[], infer_human_trajectory=True, debug_tag=""):
     """
     Given the start and end location of a human agent, predict the path and return the objects visible from the path.
     
@@ -22,7 +22,14 @@ def get_objects_visible_from_last_seen(start_location, end_location, map_boundar
     """
     last = __project_continuous_location_to_map_location__(start_location, map_boundaries)  # get the last seen location of the human in pixel coordinates
     curr = __project_continuous_location_to_map_location__(end_location, map_boundaries)  # get the current location of the human in pixel coordinates
-    path, all_neighbors = predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
+    # if using the ground truth human trajectory, get the path from the given poses
+    if use_gt_human_trajectory:
+        path = [(__project_continuous_location_to_map_location__(pose[0], map_boundaries), pose[1]) for pose in gt_human_poses]
+        all_neighbors = []
+    # otherwise, run A* to get the path
+    else:
+        path, all_neighbors = predict_path(last, curr, map_boundaries)  # [:2] to get only east and north (x and y)
+    
     object_locations = []
     object_index_to_key = {}
     for i, o in enumerate(robot_dsg.objects):  # get the location of robot's known objects in pixel coordinates
@@ -30,8 +37,24 @@ def get_objects_visible_from_last_seen(start_location, end_location, map_boundar
         object_locations.append([pos[0], pos[1], i])
         object_index_to_key[i] = o  # store the index of the object for referencing
     object_locations = numpy.array(object_locations)  # convert to numpy array for easier indexing
-    # get the objects visible from the path
-    visibility, visible_points = __get_objects_visible_from_path__(robot_dsg, path, map_boundaries, human_fov)  # visibility is [False, True, True, False, ...] for each object, visible_points is for debugging
+    # if inferring the human's trajectory, get the objects visible from the path
+    if infer_human_trajectory:
+        print("Inferring human trajectory")
+        # for the ground truth trajectory, get the views from each point in the given path
+        if use_gt_human_trajectory:
+            print("  Using GT human trajectory")
+            visibility = []
+            visible_points = numpy.zeros((0))
+            for pose in path:
+                visibility, visible_points = __get_objects_visible_from_point__(robot_dsg, pose[0], pose[1], map_boundaries, human_fov, object_locations=[], visibility=visibility, debug_visible_points=visible_points)
+            # make path just the locations
+            path = [pose[0] for pose in path]
+        else:
+            print("  Inferring trajectory from start/end points")
+            visibility, visible_points = __get_objects_visible_from_path__(robot_dsg, path, map_boundaries, human_fov)  # visibility is [False, True, True, False, ...] for each object, visible_points is for debugging
+    else:  # if only looking at the last point
+        visibility = [False for _ in range(len(robot_dsg.objects))]  # initialize visibility to all False
+        visible_points = numpy.zeros((0))  # initialize visible points to empty
     # if a direction is provided, get the objects visible from the last point 
     if end_direction is not None:
         visibility, visible_points = __get_objects_visible_from_point__(robot_dsg, curr, end_direction, map_boundaries, human_fov, object_locations=[], visibility=visibility, debug_visible_points=visible_points)

@@ -272,9 +272,10 @@ class PoseDetection:
 
     # get the forward direction of a character
     # pose: list of keypoints
-    def get_direction_from_pose(pose:list, use_gt_human_pose=False) -> list:
+    def get_direction_from_pose(self, pose:list, use_gt_human_pose=False) -> list:
         # get direction from ground truth pose
         if use_gt_human_pose:
+            print("  Using ground truth human pose!", pose[-1])
             return pose[-1]  # use the coordinate system (east, north, vertical)
         # get direction from observed pose
         else:

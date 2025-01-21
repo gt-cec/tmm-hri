@@ -176,13 +176,13 @@ class DSG:
                 raise ValueError("Validating object properties: an object dictionary was passed in and a z param was passed in, fix by only passing in one of those parameters.")
             # ensure the object dictionary has the needed properties
             if "x" not in object_dict:
-                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have an 'x' field: " + str(seen_object))
+                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have an 'x' field: " + str(object_dict["class"]))
             if "y" not in object_dict:
-                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'y' field: " + str(seen_object))
+                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'y' field: " + str(object_dict["class"]))
             if "z" not in object_dict:
-                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'z' field: " + str(seen_object))
+                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'z' field: " + str(object_dict["class"]))
             if "class" not in object_dict:
-                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'class' field: " + str(seen_object))
+                raise ValueError("Validating object properties: an object dictionary was passed in but it does not have a 'class' field: " + str(object_dict["class"]))
             # set the variables to the object properties
             object_class = object_dict["class"]
             x = object_dict["x"]

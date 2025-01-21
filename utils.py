@@ -32,20 +32,21 @@ def extract_pose_loc_for_index(pose_list, index, cast_to_numpy_array=False):
     return np.array(r)[[0,2,1]] if cast_to_numpy_array else [r[0], r[2], r[1]]  # convert from coordinate frame (east, vertical, north) to (east, north, vertical)
 
 # project visually observed objects from the agent's frame, sim fov = 1.0472rad = 120deg
-def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, seg_masks, depth, fov):
+def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_objects, agent_pose, depth, fov, ignore_dist=0):
     """
     agent_pose: (robot location, robot heading)
     """
     fov = np.deg2rad(fov)
     # get the location of the object in 3D space
-    for i in range(seg_masks.shape[0]):  # for each observed object
-        mask = depth[seg_masks[i] > 0]  # the depth field corresponding to the object mask
-        dist = mask.sum() / seg_masks[i].sum()  # mean depth
-        indices = seg_masks[i].nonzero()  # get indices of the mask
+    for i in range(len(detected_objects)):  # for each observed object
+        obj = detected_objects[i]
+        mask = depth[obj["seg mask"] > 0]  # the depth field corresponding to the object mask
+        dist = mask.sum() / obj["seg mask"].sum()  # mean depth
+        indices = obj["seg mask"].nonzero()  # get indices of the mask
         avg_row = sum(indices[0]) / len(indices[0])  # get average row
         avg_col = sum(indices[1]) / len(indices[1])  # get average col
-        horz_angle = (avg_col - seg_masks[i].shape[1] / 2) / seg_masks[i].shape[1] * fov  # get angle left/right from center
-        vert_angle = (avg_row - seg_masks[i].shape[0] / 2) / seg_masks[i].shape[0] * fov  # get angle up/down from center
+        horz_angle = (avg_col - obj["seg mask"].shape[1] / 2) / obj["seg mask"].shape[1] * fov  # get angle left/right from center
+        vert_angle = (avg_row - obj["seg mask"].shape[0] / 2) / obj["seg mask"].shape[0] * fov  # get angle up/down from center
         x_pos_local = math.sin(horz_angle) * dist
         y_pos_local = math.cos(horz_angle) * dist
         z_pos_local = math.sin(vert_angle) * dist
@@ -55,12 +56,18 @@ def project_detected_objects_positions_given_seg_masks_and_agent_pose(detected_o
         x_pos_global = agent_pose[0][0] + math.cos(pose_horz_angle - horz_angle) * dist
         y_pos_global = agent_pose[0][1] + math.sin(pose_horz_angle - horz_angle) * dist
         z_pos_global = agent_pose[0][2] + math.sin(pose_vert_angle - vert_angle) * dist  # in the future, should use head instead for eye vert
-        detected_objects[i]["x"] = float(x_pos_global)
-        detected_objects[i]["x local"] = float(x_pos_local)
-        detected_objects[i]["y"] = float(y_pos_global)
-        detected_objects[i]["y local"] = float(y_pos_local)
-        detected_objects[i]["z"] = float(z_pos_global)
+        obj["x"] = float(x_pos_global)
+        obj["x local"] = float(x_pos_local)
+        obj["y"] = float(y_pos_global)
+        obj["y local"] = float(y_pos_local)
+        obj["z"] = float(z_pos_global)
+        obj["dist"] = float(dist)
         # detected_objects[i]["seg mask"] = seg_masks[i]
+    
+    # filter objects if ignoring objects past a specified distance
+    if ignore_dist > 0:
+        detected_objects = [x for x in detected_objects if x["dist"] < ignore_dist]
+
     return detected_objects
 
 # get the agent pose in each frame

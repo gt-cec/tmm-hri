@@ -107,7 +107,6 @@ def detect_from_ground_truth(gt_instances_image, gt_class_image, gt_class_colorm
         # get the color of the class image at the mask
         class_color = [int(x) for x in utils.get_mode(gt_class_image[mask])]
         color_key = str(class_color)
-        # print("##", gt_class_colormap)
         if color_key not in gt_class_colormap:  # catch colors not in the ground truth colors
             closest_match, closest_match_dist, dists = get_closest_match(eval(color_key), [(eval(x), gt_class_colormap[x]) for x in gt_class_colormap])
             if closest_match_dist < 10:

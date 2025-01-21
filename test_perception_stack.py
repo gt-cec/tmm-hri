@@ -93,8 +93,9 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
             human_pose = robot_human_detections[0][0]["pose"]  # get the human's pose
             human_location = [human_pose[0], human_pose[1], human_pose[2]] # pose[0] is the base joint, using [east, north, vertical]
             if use_gt_human_pose:
-                human_direction = pose.get_direction_from_pose(human_pose, use_gt_human_pose=use_gt_human_pose) # get the direction that the human is facing
-                robot_human_detections[0][0]["pose"] = human_pose  # update the human's pose in the detections
+                human_direction = robot_mm.pose_detector.get_direction_from_pose(human_pose, use_gt_human_pose=use_gt_human_pose) # get the direction that the human is facing
+                human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]
+                robot_human_detections[0][0]["pose"] = human_location  # update the human's pose in the detections
                 robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
             robot_human_detections[0][0]["visible objects"] = objects_visible_to_human  # update the human's visible objects in the detections
 
