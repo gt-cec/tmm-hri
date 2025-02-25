@@ -44,4 +44,7 @@ sim/virtualhome/simulation/unity_simulator/linux_exec*
 !virtualhome/
 !virtualhome/**
 
+# demo
+!demo/
+
 __pycache__

@@ -200,4 +200,4 @@ def generate_dsg_metrics(episode_dir:str):
     
 if __name__ == "__main__":
     # generate_dsg_metrics("episodes/episode_42")
-    generate_dsg_smcc_plot(episode_dir="episodes/episode_50", ablation_annotation="Ablation: GT all")
+    generate_dsg_smcc_plot(episode_dir="episodes/episode_42", ablation_annotation="Ground Truth Perception")

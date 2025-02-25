@@ -85,9 +85,6 @@ def experiment_parents_are_out(episode_dir:str, agent_id="0", use_gt_human_pose=
             if node["class"] == "character" and node not in initial_preshuffled_objects:
                 initial_preshuffled_objects.append(node)
 
-    print("Initial shuffled objects:", [print(x) for x in initial_shuffled_objects])
-    print("Initial pre-shuffled objects:", [print(x) for x in initial_preshuffled_objects])
-
     # initialize the models
     pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
 
