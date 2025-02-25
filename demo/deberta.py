@@ -1,4 +1,4 @@
-from transformers import AutoModelForSequenceClassification, DebertaV2Tokenizer, pipeline
+from transformers import DebertaV2Tokenizer, pipeline
 
 class DeBERTav3:
     def __init__(self, model_name="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"):
