@@ -52,16 +52,15 @@ def experiment_parents_are_out(episode_dir:str, agent_id="0", use_gt_human_pose=
     # get the ground truth color map, used for ground truth semantics and to initialize the scene
     color_to_class, initial_shuffled_objects = utils.load_colormap(episode_name)
 
-    with open(f"{episode_dir}/episode_info.txt") as f:
-        classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal',
-                   'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush',
-                   'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste',
-                   'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid',
-                   'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream',
-                   'waterglass', 'salmon', 'barsoap', 'character', 'wineglass']
-        classes = sorted(list(set([color_to_class[k] for k in color_to_class if color_to_class[k] in classes])) + ["human"])  # get the classes that are in the colormap
-        class_to_class_id = {o : i for i, o in enumerate(classes)}
-        class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
+    classes = ["human", 'perfume', 'candle', 'bananas', 'cutleryfork', 'washingsponge', 'apple', 'cereal',
+                'lime', 'cellphone', 'bellpepper', 'crackers', 'garbagecan', 'chips', 'peach', 'toothbrush',
+                'pie', 'cupcake', 'creamybuns', 'plum', 'chocolatesyrup', 'towel', 'folder', 'toothpaste',
+                'computer', 'book', 'fryingpan', 'paper', 'mug', 'dishbowl', 'remotecontrol', 'dishwashingliquid',
+                'cutleryknife', 'plate', 'hairproduct', 'candybar', 'slippers', 'painkillers', 'whippedcream',
+                'waterglass', 'salmon', 'barsoap', 'character', 'wineglass']
+    classes = sorted(list(set([color_to_class[k] for k in color_to_class if color_to_class[k] in classes])) + ["human"])  # get the classes that are in the colormap
+    class_to_class_id = {o : i for i, o in enumerate(classes)}
+    class_id_to_color_map = matplotlib.cm.ScalarMappable(norm=plt.Normalize(vmin=1, vmax=len(classes)), cmap=matplotlib.cm.hsv).to_rgba([i for i, x in enumerate(classes)])  # color mapper
 
     # filter out initial objects that are not in the classes
     initial_shuffled_objects = [x for x in initial_shuffled_objects if x["class"] in classes]
@@ -205,6 +204,11 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
     for frame_id in frames:
         if frame_id < start_frame:
             continue
+
+        # if the frame is not in the human agent's frame, skip it
+        if str(frame_id) not in human_poses:
+            continue
+
         # load the frame files
         print(f"Processing frame {frame_id}")
         agent_pose = [agent_poses[str(frame_id)][0], agent_poses[str(frame_id)][-1]]
@@ -228,7 +232,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_instance_image=gt_instance_image, gt_class_image=gt_class_image, gt_class_colormap=color_to_class, seg_threshold=0.4)
         else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
-            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name=f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}")
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, detect_threshold=0.4, seg_save_name=f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}")
         
         # update the ground truth human mental model, requires the ground truth from the simulator
         print("  Updating ground truth human mental model")
@@ -239,7 +243,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
         gt_human_class_image = cv2.cvtColor(gt_human_class_image, cv2.COLOR_BGR2RGB)
         gt_human_depth = cv2.imread(f"{human_frame_prefix}_depth.exr",  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)  # exr comes in at HxWx3, we want HxW
         gt_human_depth_1channel = gt_human_depth[:,:,0]
-        gt_human_mm.update_from_rgbd_and_pose(None, gt_human_depth_1channel, gt_human_pose, classes, gt_class_image=gt_human_class_image, gt_instance_image=gt_human_instance_image, gt_class_colormap=color_to_class, class_to_class_id=class_to_class_id, depth_classes=depth_classes, seg_threshold=0.4, seg_save_name=f"{episode_dir}/{1-int(agent_id)}/Action_{str(frame_id).zfill(4)}")
+        gt_human_mm.update_from_rgbd_and_pose(None, gt_human_depth_1channel, gt_human_pose, classes, gt_class_image=gt_human_class_image, gt_instance_image=gt_human_instance_image, gt_class_colormap=color_to_class, class_to_class_id=class_to_class_id, depth_classes=depth_classes, detect_threshold=0.4, seg_save_name=f"{episode_dir}/{1-int(agent_id)}/Action_{str(frame_id).zfill(4)}")
 
         # if the human is visible to the robot, run the trajectory prediction
         objects_visible_to_human = []  # objects that the robot thinks the human can see

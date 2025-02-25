@@ -43,6 +43,15 @@ class DSG:
             self.__objects_by_class__[object_class] = []  # init the class
         self.__objects_by_class__[object_class].append(object_id)  # add the object ID to the class list
         return
+    
+    # remove an object from the scene graph
+    def remove_object(self, object_id:str):
+        if object_id not in self.objects:
+            raise KeyError("Given object ID (" + str(object_id) + ") is not in the node table.")
+        object_class = self.objects[object_id].object_class
+        del self.objects[object_id]  # remove the object
+        self.__objects_by_class__[object_class].remove(object_id)  # remove the object from the class list
+        return
 
     # parses a set of visible objects to update the scene
     # used when the object ID is not known, this function figures out which object we are changing

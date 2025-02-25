@@ -20,7 +20,7 @@ class MentalModel:
 
     # updates the DSG from a known pose and RGBD image
     # Coordinate Frame: x (right), y (forward), z (up)
-    def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, class_to_class_id=[], depth_classes=[], gt_class_image=None, gt_instance_image=None, gt_class_colormap=None, seg_threshold=0.1, seg_save_name=None, depth_test=None):
+    def update_from_rgbd_and_pose(self, rgb, depth, pose, classes, class_to_class_id=[], depth_classes=[], gt_class_image=None, gt_instance_image=None, gt_class_colormap=None, detect_threshold=0.1, seg_save_name=None, depth_test=None):
         # verify types
         human_class_id = [i for i, x in enumerate(classes) if x == "human"][0]  # get the class ID of the "human" label, this could be optimized a little by placing this ID as a class level variable
 
@@ -33,7 +33,7 @@ class MentalModel:
 
         # if we have GT detections and segmentations, parse them into the objects
         if use_gt_detection and use_gt_segmentation:
-            ignore_dist = 5  # ignore objects that are too far because of measurement uncertainty
+            ignore_dist = 0  # we can ignore objects that are too far because of measurement uncertainty, choosing not to because it didn't make a noticeable difference.
             print("    Using object detection from ground truth information!")
             # get the detected objects and segmentations
             detected_objects, object_seg_masks = detect.detect_from_ground_truth(gt_instance_image, gt_class_image, gt_class_colormap, classes=classes, class_to_class_id=class_to_class_id)
@@ -62,7 +62,7 @@ class MentalModel:
                 depth_detected_humans = None
             else:
                 # get objects in the scene
-                detected_objects, _ = detect.detect(rgb, classes, seg_threshold)  # returns detected objects and an RGB debugging image (ignored)
+                detected_objects, _ = detect.detect(rgb, classes, detect_threshold)  # returns detected objects and an RGB debugging image (ignored)
 
                 # get humans in the scene
                 rgb_detected_humans, _ = detect.detect(rgb, depth_classes, 0.1)

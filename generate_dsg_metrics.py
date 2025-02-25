@@ -199,5 +199,5 @@ def generate_dsg_metrics(episode_dir:str):
             print(f"{description}:\t{round(mean_similarities[description][k], 3)} ± {round(std_similarities[description][k], 3)}")
     
 if __name__ == "__main__":
-    generate_dsg_metrics("episodes/episode_42")
-    # generate_dsg_smcc_plot(episode_dir="episodes/episode_42", ablation_annotation="Ablation: GT all but pose")
+    # generate_dsg_metrics("episodes/episode_42")
+    generate_dsg_smcc_plot(episode_dir="episodes/episode_50", ablation_annotation="Ablation: GT all")

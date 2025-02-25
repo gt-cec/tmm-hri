@@ -6,7 +6,7 @@ In this project we aim to enable a robot to estimate the belief state of other (
 
 #### Requirements
 
-- (If generating your own simulation) VirtualHome, place in your project workspace, following the instructions on their GitHub
+- (If generating your own simulation) VirtualHome, down the executable and place in your workspace.
 - PyTorch
 - MMPose (and by extension, MMEngine and MMCV)
 - OWLv2
@@ -146,3 +146,19 @@ For testing the ROS system, we wrote a script to relay data from the `./episodes
 `python3 ros_interface.py`
 
 This relays the RGB camera, Depth camera, and Pose (location/orientation) of the robot agent for each recorded frame. The orientation is calculated using the vector normal to the plane defined by the hip location and each shoulder location.
+
+### Demo: "What items should I notify the user about?"
+
+This demo shows one use case of this system: proactively telling users about items in the environment that the system thinks the user is not aware of. In this demo, we pass the robot's belief state, the predicted human belief state, and the human's activity to identify objects that may be useful. We evaluate using a locally-hosted LLM for this matching. In our case, `qwen2.5`, although it is trivial to change the connector in `llm.py`.
+
+To set up the demo, first install LangChain:
+
+`mamba install conda-forge::langchain`
+
+Since we are hosting our LLM locally using ollama, install the connector:
+
+`python3.11 -m pip install -U langchain-ollama`
+
+Then start Ollama, and run the demo script:
+
+`python3.11 demo/identify_items_for_activity.py`
