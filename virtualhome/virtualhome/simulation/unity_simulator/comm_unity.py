@@ -34,7 +34,7 @@ class UnityCommunication(object):
 
     def __init__(self, url='127.0.0.1', port='8080', file_name=None, x_display=None, no_graphics=False, logging=True,
                  timeout_wait=30, docker_enabled=False):
-        self._address = 'http://' + url + ':' + port
+        self._address = 'http://' + url + ':' + str(port)
         self.port = port
         self.graphics = no_graphics
         self.x_display = x_display
