@@ -118,7 +118,7 @@ def __randomize_object_locations__(g:dict) -> dict:
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__(seed=42):
     global comm
-    comm = UnityCommunication(no_graphics=False)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    comm = UnityCommunication(no_graphics=False, port=1500)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
