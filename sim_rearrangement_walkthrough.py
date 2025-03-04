@@ -94,6 +94,7 @@ def __randomize_object_locations__(g:dict) -> dict:
     positions_mapping = {}
     for i in range(len(positions_ids)):
         positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i], positions_names[i])
+        print("SHUFFLING", positions_mapping[positions_ids_old[i]], "=", positions_ids[i], positions_positions[i], positions_names[i])
     
     # replace the positions
     for id_of_node_to_change in positions_mapping:
@@ -228,7 +229,7 @@ def __get_objects_in_rooms__(g={}):
 
 # run the agents
 if __name__ == "__main__":
-    seed = 50
+    seed = 42
     output_folder = "../episodes"  # relative to the executable, in our case up one directory
     episode_count = 1
     num_agents = 2
