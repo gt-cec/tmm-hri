@@ -72,11 +72,11 @@ def __randomize_object_locations__(g:dict) -> dict:
     Returns:
         dict: The graph with the object locations randomized.
     """
-    positions_ids = []
-    positions_positions = []
-    positions_names = []
+    positions_ids = []  # ids of the objects
+    positions_positions = []  # positions of the bounding box center
+    positions_names = []  # class name of the object
     
-    # get the positions of the objects
+    # get the positions/ids/classes of all grabbable objects
     for n in g["nodes"]:
         if not utils.__node_is_grabbable__(n, ignore_objects=ignore_objects):
             continue
@@ -93,16 +93,21 @@ def __randomize_object_locations__(g:dict) -> dict:
 
     positions_mapping = {}
     for i in range(len(positions_ids)):
+        # use the shuffled object IDs so we can go through and assign each object the object ID and position of a different object
+        # positions mapping[original object ID] = (new object ID, position of new object ID, class of new object ID)
         positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i], positions_names[i])
         print("SHUFFLING", positions_mapping[positions_ids_old[i]], "=", positions_ids[i], positions_positions[i], positions_names[i])
     
     # replace the positions
     for id_of_node_to_change in positions_mapping:
+        # the object ID that the current object will take the position of
         using_position_of_id = positions_mapping[id_of_node_to_change][0]
-        # find the room of the old object and the new object
+        # find the room of the old object, remove the connection to the old object, create the connection to the new object
         for room in objects_in_rooms:  # for each room
             for item in objects_in_rooms[room]:  # for each item in the room
-                if item[0] == positions_mapping[using_position_of_id][0]:  # if the item ID matches the position mapping
+                # if the item ID matches the object ID that the current object will take the position of
+                # if item[0] == positions_mapping[using_position_of_id][0]:    # removed because items werent shuffling
+                if item[0] == using_position_of_id:
                     # remove previous INSIDE
                     g["edges"].remove({"from_id": item[0], "to_id": room, "relation_type": "INSIDE"})
                     # add new INSIDE
@@ -112,13 +117,15 @@ def __randomize_object_locations__(g:dict) -> dict:
         for i in range(len(g["nodes"])):
             if g["nodes"][i]["id"] == id_of_node_to_change:
                 g["nodes"][i]["bounding_box"]["center"] = positions_mapping[using_position_of_id][1]
+                print("Using pos", positions_mapping[using_position_of_id][1], "for id", i)
+                g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
                 break
     return g
 
 # kill the simulator to get as fresh run, a bash script on the server should have it restart automatically
 def __reset_sim__(seed=42):
     global comm
-    comm = UnityCommunication(no_graphics=False, port=1500)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
+    comm = UnityCommunication(no_graphics=False, port=8080)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
             comm.reset()
@@ -136,7 +143,14 @@ def __reset_sim__(seed=42):
     # randomize the object locations
     g = comm.environment_graph()[1]
     preshuffle_nodes = [x for x in g["nodes"]]
+    g1 = {k:g[k] for k in g}
     g = __randomize_object_locations__(g)
+    with open("g1.txt", "w") as f:
+        f.write(str(g1))
+    with open("g2.txt", "w") as f:
+        f.write(str(g))
+    
+    
     comm.expand_scene(g)
     time.sleep(3)
     comm.add_character('Chars/Male2', initial_room='kitchen')
