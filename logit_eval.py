@@ -2,7 +2,6 @@
 
 import demo.identify_items_for_activity
 import demo.qwen
-import pickle
 
 if __name__ == "__main__":
     print("Logit Evaluation: Identify Item Relevance for Activity")
