@@ -23,18 +23,15 @@ def create_violin_plot(data, ax, keys, title):
         x_positions = np.full_like(points, i + 1, dtype=float)
         ax.scatter(x_positions + jitter, points, alpha=0.6, color='grey', s=10)
 
-def plot_logits_results(data):
+def plot_logits_results(data, prompt):
     """
         Plots the results of evaluating truth based on logits as a 2D plot
     """  
 
     fig = plt.figure(figsize=(15, 5))
-    fig.suptitle("Logits Results From: \"Is a _ useful for _?\"")
+    fig.suptitle(f"Qwen2.5:3b Logits Results From: \"{prompt}\"")
     num_yesno_pairs = len(demo.qwen.token_ids) // 2
     gs = gridspec.GridSpec(2, num_yesno_pairs, figure=fig)#plt.subplots(2, 8, figsize=(15, 5))
-
-    # Define the grid layout: 3 rows, 3 columns
-    # gs = gridspec.GridSpec(3, 3, figure=fig)
 
     # Create the subplots
     axes = [[], []]
@@ -46,29 +43,22 @@ def plot_logits_results(data):
 
     # set up the data
     data_by_logit = {}
-    for key in data.keys():
-        for subkey in data[key].keys():
-            if subkey not in data_by_logit:
-                data_by_logit[subkey] = []
-            words = key.split(" ")[1:]
-            object = ""
-            for i in range(len(words), 0, -1):
-                candidate_activity = " ".join(words[i:])
-                if candidate_activity in demo.identify_items_for_activity.ACTIVITIES:
-                    activity = candidate_activity
-                    object = " ".join(words[:i])
-                    break
-            print("+++", activity)
-            ground_truth = object in demo.identify_items_for_activity.ACTIVITIES[activity]
-            data_by_logit[subkey].append((ground_truth, data[key][subkey], object, activity))
+    for activity in data.keys():
+        for obj in data[activity].keys():
+            ground_truth = obj in demo.identify_items_for_activity.ACTIVITIES[activity]
+            for method in data[activity][obj]:
+                if method not in data_by_logit:
+                    data_by_logit[method] = []
+                print(">>>", (ground_truth, data[activity][obj][method], obj, activity))
+                data_by_logit[method].append((ground_truth, data[activity][obj][method], obj, activity))
 
     array_data_by_logit_gt_is_true = []
-    for key in data_by_logit:
-        array_data_by_logit_gt_is_true.append([x[1] for x in data_by_logit[key] if x[0] == True])
+    for method in data_by_logit:
+        array_data_by_logit_gt_is_true.append([x[1] for x in data_by_logit[method] if x[0] == True])
 
     array_data_by_logit_gt_is_false = []
-    for key in data_by_logit:
-        array_data_by_logit_gt_is_false.append([x[1] for x in data_by_logit[key] if x[0] == False])
+    for method in data_by_logit:
+        array_data_by_logit_gt_is_false.append([x[1] for x in data_by_logit[method] if x[0] == False])
 
     print("N (true) =", len(array_data_by_logit_gt_is_true[0]), "N (false) =", len(array_data_by_logit_gt_is_false[0]))
     
@@ -79,21 +69,21 @@ def plot_logits_results(data):
     summary_scores = {}
     false_negatives = {}
 
-    for key in data_by_logit:
-        summary_scores[key] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
-        false_negatives[key] = []
-        for i in range(len(data_by_logit[key])):
-            if data_by_logit[key][i][0] == True:
-                if data_by_logit[key][i][1] > 0.5:
-                    summary_scores[key]["TP"] += 1
+    for method in data_by_logit:
+        summary_scores[method] = {"TP": 0, "FP": 0, "TN": 0, "FN": 0}
+        false_negatives[method] = []
+        for i in range(len(data_by_logit[method])):
+            if data_by_logit[method][i][0] == True:
+                if data_by_logit[method][i][1] > 0.5:
+                    summary_scores[method]["TP"] += 1
                 else:
-                    summary_scores[key]["FN"] += 1
-                    false_negatives[key].append(data_by_logit[key][i])
+                    summary_scores[method]["FN"] += 1
+                    false_negatives[method].append(data_by_logit[method][i])
             else:
-                if data_by_logit[key][i][1] > 0.5:
-                    summary_scores[key]["FP"] += 1
+                if data_by_logit[method][i][1] > 0.5:
+                    summary_scores[method]["FP"] += 1
                 else:
-                    summary_scores[key]["TN"] += 1
+                    summary_scores[method]["TN"] += 1
     
     print("False negatives:", false_negatives)
     for i, key in enumerate(summary_scores):
@@ -121,26 +111,25 @@ def plot_logits_results(data):
     plt.tight_layout()
     plt.show()
     
-def load_text():
+def load_text(filename):
     """
     Loads the text from a file
     """
     data = {}
 
-    with open("cot judge logits.txt", "r") as f:
+    with open(filename, "r") as f:
         lines = f.readlines()
         for line in lines:
-            bracket_index = line.index("{")
-            key = line[:bracket_index].strip()
-            value = eval(line[bracket_index:])
-            if key not in data:
-                data[key] = value
-            else:
-                data[key].update(value)
-            "judge book cleaning the window {('true', 'false'): 0.0010322310367548194, ('True', 'False'): 0.005554924703691102, ('TRUE', 'FALSE'): 0.0012065897122463891, ('=true', '=false'): 0.010328152519305193, ('=True', '=False'): 0.0029008577108601227, ('yes', 'no'): 1.670142184809518e-05, ('Yes', 'No'): 3.2887490654604983e-06, ('YES', 'NO'): 1.459376221076886e-06}"
+            items = line.split("|")
+            obj = items[0]
+            activity = items[1]
+            value = eval(items[2])
+            if activity not in data:
+                data[activity] = {}
+            data[activity][obj] = value
     return data
 
-data = load_text()
 
+data = load_text("cot eval logits.txt")
 # plot the data
-plot_logits_results(data)
+plot_logits_results(data, "Intro, symbolic example, Is a _ useful for _?")

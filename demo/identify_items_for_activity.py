@@ -4,8 +4,6 @@
 import os, pickle
 import dsg
 import utils
-import demo.deberta
-import demo.llm
 
 NONE_OBJECT = "None of these objects"
 
@@ -80,6 +78,8 @@ model = None
 bert = None
 
 def load_models():
+    import demo.deberta
+    import demo.llm
     global model, bert
     model = demo.llm.LLMDemoActivityNeeds(NONE_OBJECT=NONE_OBJECT)
     bert = demo.deberta.DeBERTav3()
