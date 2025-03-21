@@ -9,6 +9,18 @@ if __name__ == "__main__":
     episode = "episode_42_short"
     print("Using episode:", episode)
 
+    # get the objects to process
+    objects = demo.identify_items_for_activity.get_object_sets(episode, [1, 100, 200, 300, 400, 500], dist_limit=0.3)
+    print("OBJECTS")
+    all_unknown_objects = set()
+    for episode_frame in objects:
+        unknown_objects = list(set(objects[episode_frame]["classes unknown to human"]))
+        [all_unknown_objects.add(x) for x in unknown_objects]
+    
+    print("All unknown objects:", all_unknown_objects)
+
+    input()
+
     scores = {}
     demo.identify_items_for_activity.load_models()
     for activity in demo.identify_items_for_activity.ACTIVITIES.keys():

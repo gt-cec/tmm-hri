@@ -8,3 +8,5 @@ matplotlib
 opencv-python
 easydict
 pyexr
+langchain_ollama
+accelerate

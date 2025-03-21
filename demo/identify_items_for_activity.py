@@ -138,6 +138,22 @@ def filter_dsg_to_objects_beyond_dist(dsg_source:dsg, dsg_target:dsg, dist_limit
     # resulting DSG only has objects far enough away from the source
     return dsg_target, distances
 
+def get_object_sets(episode:str, frame_ids:list[int], dist_limit=0.3):
+    """Get the object sets from the DSGs of the specified episodes and frame IDs."""
+    object_sets = {}
+    for frame_id in frame_ids:
+        dsgs = load_dsgs_from_episode(episode, frame_id)
+        key = f"{episode}_{frame_id}"
+        if key not in object_sets:
+            object_sets[key] = {}
+        object_sets[key]["classes known to robot"] = parse_object_classes(dsgs["robot"])
+        # get the DSGs of objects not in the robot's DSG
+        dsgs_objects_human_does_not_know, distances = filter_dsg_to_objects_beyond_dist(dsg_source=dsgs["robot"], dsg_target=dsgs["pred human"], dist_limit=dist_limit)
+        
+        # parse the object classes
+        objects_human = parse_object_classes(dsgs_objects_human_does_not_know)
+        object_sets[key]["classes unknown to human"] = objects_human
+    return object_sets
 
 def run_demo(episode:str, activity:str="cooking", dist_limit:float=0.3, frame_id:int=-1, verbose:bool=False):
     """Run the demo for identifying items for an activity that the human is not aware of.
