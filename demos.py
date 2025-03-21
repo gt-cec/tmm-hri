@@ -6,10 +6,11 @@ import pickle
 if __name__ == "__main__":
     print("- Demo: Identify Items for Activity -")
 
-    episode = "episode_42"
+    episode = "episode_42_short"
     print("Using episode:", episode)
 
     scores = {}
+    demo.identify_items_for_activity.load_models()
     for activity in demo.identify_items_for_activity.ACTIVITIES.keys():
         for frame_id in [1, 100, 200, 300, 400, 500]:
             print(f"Running demo for activity {activity} at frame {frame_id}")
@@ -53,5 +54,5 @@ if __name__ == "__main__":
     # Total random FN: 13.0
     # Random F1: 0.20077220077220076
 
-    with open(f"demo_results_{episode}.pkl", "wb") as f:
+    with open(f"instruct_demo_results_{episode}.pkl", "wb") as f:
         pickle.dump(scores, f)

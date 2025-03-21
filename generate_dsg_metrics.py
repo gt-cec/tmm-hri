@@ -3,6 +3,31 @@ import matplotlib.patches
 import metrics.metrics
 import os, pickle, utils, ast, statistics
 
+# plot colors
+# color_sunset_orange = (252/255, 112/255, 35/255)
+# color_sunset_redorange = (250/255, 51/255, 41/255)
+# color_sunset_brown = (164/255, 27/255, 31/255)
+color_blue_dark = (20/255, 67/255, 148/255)
+color_blue_medium = (15/255, 126/255, 253/255)
+color_blue_light = (130/255, 165/255, 214/255)
+
+color_inferred = color_blue_dark
+color_robot = color_blue_light
+color_human = color_blue_medium
+
+color_human_is_seen = color_blue_dark
+color_human_is_seen_alpha = 0.15
+
+# plot parameters
+ablation_annotation = None  # comment out this to show the ablation annotation
+axis_fontsize = 15
+legend_adjustment = (0.5, -0.12)
+legend_fontsize = 13
+ylim_max = 1.4
+whiteout_y_start = 1.4
+arrow_x_pos = -0.085
+arrow_start_y = 0.15
+
 def load_dsg_data(episode_dir:str, description:str="") -> dict:
     """
     Load the DSG data from the saved files.
@@ -33,27 +58,27 @@ def load_dsg_data(episode_dir:str, description:str="") -> dict:
     return data
 
 
-def generate_dsg_smcc_plot(episode_dir:str, ablation_annotation=None):
-    data = load_dsg_data(episode_dir)
+def generate_dsg_smcc_plot(ax, episode_dir:str, description:str="", ablation_annotation=None, show_y_label=True):
+    data = load_dsg_data(episode_dir, description)
     # generate the metrics
     similarities = {}
     prev_robot_set = None
     for frame_id in sorted(data["frames"].keys()):
         dsg_robot = data["frames"][frame_id]["robot"]
         dsg_human_gt = data["frames"][frame_id]["gt human"]
-        dsg_human_pred = data["frames"][frame_id]["pred human"]
+        dsg_human_inferred = data["frames"][frame_id]["pred human"]
 
         robot_set = format_objects_by_class(dsg_robot.get_objects_by_class())
         human_gt_set = format_objects_by_class(dsg_human_gt.get_objects_by_class())
-        human_pred_set = format_objects_by_class(dsg_human_pred.get_objects_by_class())
+        human_inferred_set = format_objects_by_class(dsg_human_inferred.get_objects_by_class())
         initial_set = format_objects_by_class({class_name : data["initial"][class_name] for class_name in data["initial"] if class_name in robot_set})
 
         similarities[frame_id] = {
             "robot wrt human": metrics.metrics.smcc(robot_set, human_gt_set),
             "robot wrt initial": metrics.metrics.smcc(robot_set, initial_set),
             "human wrt initial": metrics.metrics.smcc(human_gt_set, initial_set),
-            "pred wrt human": metrics.metrics.smcc(human_pred_set, human_gt_set),
-            "pred wrt initial": metrics.metrics.smcc(human_pred_set, initial_set)
+            "pred wrt human": metrics.metrics.smcc(human_inferred_set, human_gt_set),
+            "pred wrt initial": metrics.metrics.smcc(human_inferred_set, initial_set)
         }
 
         if prev_robot_set is not None:
@@ -62,59 +87,88 @@ def generate_dsg_smcc_plot(episode_dir:str, ablation_annotation=None):
 
     # plot the similarities
     frames = sorted(similarities.keys())
-    plt.figure()
+    # plt.figure()
     
     # remove border
-    plt.gca().spines['top'].set_visible(False)
-    plt.gca().spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     
     # plot the similarities
-    plot_pred_wrt_human = plt.plot(frames, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="★[Pred wrt Human GT] Distance between the inferred and the human's scene graph.", color="#ff1e6b")
-    plot_pred_wrt_initial = plt.plot(frames, [similarities[frame_id]["pred wrt initial"] for frame_id in frames], label="[Pred wrt Initial] Error of the inferred human scene graph.", color="#ff1e6b", linestyle=":")
-    plot_robot_wrt_human = plt.plot(frames, [similarities[frame_id]["robot wrt human"] for frame_id in frames], label="[Robot wrt Human GT] Distance between the robot's and the human's scene graph.", color="#1eb6ff")
-    plot_robot_wrt_initial = plt.plot(frames, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="[Robot wrt Initial] Error of the robot's scene graph.", color="#1eb6ff", linestyle=":")
-    plot_human_wrt_initial = plt.plot(frames, [similarities[frame_id]["human wrt initial"] for frame_id in frames], label="[Human GT wrt Initial] Error of the human's scene graph.", color="#2e8600", linestyle=":")
+    timesteps = [x / 10 for x in frames]
+    plot_inferred_wrt_human = ax.plot(timesteps, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="★[Inferred vs. Human] Error of the inferred belief state.", color=color_inferred)
+    # plot_inferred_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["inferred wrt initial"] for frame_id in frames], label="[inferred wrt Initial] Error of the inferred human scene graph.", color="#ff1e6b", linestyle=":")
+    # plot_robot_wrt_human = ax.plot(timesteps, [similarities[frame_id]["robot wrt human"] for frame_id in frames], label="[Robot wrt Human GT] Distance between the robot's and the human's scene graph.", color="#1eb6ff")
+    plot_robot_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="[Robot vs. True] Error of the robot's belief state.", color=color_robot, linestyle="-.")
+    plot_human_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["human wrt initial"] for frame_id in frames], label="[Human vs. True] Error of the human's belief state.", color=color_human, linestyle="--")
    
     # set the labels
-    axis_fontsize = 15
-    plt.title("DSG Similarity Metrics: Parents are Out", fontsize=15)
-    plt.xlabel("Frame", fontsize=axis_fontsize)
-    plt.xlim([frames[0], frames[-1]])
-    plt.ylabel("Mean SMCC [m]", fontsize=axis_fontsize)
-    plt.ylim([0, 2])
+    xticks = [i for i in range(0, int(timesteps[-1]), 10)]
+    ax.set_xlabel("Time [s]", fontsize=axis_fontsize)
+    ax.set_xticks(ticks=xticks, labels=xticks, fontsize=legend_fontsize)
+    ax.set_xlim([timesteps[0], timesteps[-1]])
+
+    ytick_interval = 0.2
+    num_yticks = int(ylim_max / 0.2) + 2
+    yticks = [round(ytick_interval * i, 1) for i in range(0, num_yticks)]
+    ax.set_title(ablation_annotation, fontsize=axis_fontsize, fontweight="bold")
+    if show_y_label:
+        ax.set_ylabel("Mean SMCC [m]", fontsize=axis_fontsize)
+        # draw a downward arrow on the y-axis to indicate lower is better
+        ax.annotate("", xy=(arrow_x_pos, arrow_start_y), xytext=(arrow_x_pos, 0), xycoords="axes fraction", arrowprops=dict(arrowstyle="<-", lw=0.5, color="black"))
+    
+    ax.set_yticks(ticks=yticks, labels=yticks, fontsize=legend_fontsize)
+    ax.set_ylim([0, ylim_max])
 
     # add the shading for the human is seen
-    for frame_id in frames:
+    for i in range(len(frames)):
+        frame_id = frames[i]
+        timestep = timesteps[i]
         # add a verticle rectangle if the human was seen in this frame
         if data["frames"][frame_id]["human is seen"]:
-            plt.gca().add_patch(plt.Rectangle((frame_id - 0.5, 0), 1, 2, facecolor="purple", alpha=0.1))
+            ax.add_patch(plt.Rectangle((timestep - 0.05, 0), 0.1, 2, facecolor=color_human_is_seen, alpha=color_human_is_seen_alpha))
 
     # create the grid
-    plt.grid()
+    ax.grid()
+
+    return plot_inferred_wrt_human, plot_robot_wrt_initial, plot_human_wrt_initial
+
+# utility function for retrieving the visible frames, use before add_visible_frames to fix a DSG folder that doesn't have the "human is seen" flag
+def get_visible_frames(episode_dir:str, description:str=""):
+    data = load_dsg_data(episode_dir, description)
+    visible_frames = {}
+    # add the shading for the human is seen
+    for frame_id in data["frames"]:
+        # add a verticle rectangle if the human was seen in this frame
+        visible_frames[frame_id] = data["frames"][frame_id]["human is seen"]
     
-    # create the legend
-    handles = [
-        plot_pred_wrt_human[0],  # [0] to get the label component
-        plot_pred_wrt_initial[0],
-        plot_robot_wrt_human[0],
-        plot_robot_wrt_initial[0],
-        plot_human_wrt_initial[0],
-        matplotlib.patches.Patch(facecolor='purple', alpha=0.1, label='Human is observed in this frame')
-    ]
-    legend = plt.legend(handles=handles, framealpha=1, fontsize=7.5, loc="upper left", bbox_to_anchor=(0, 1.02))
-    legend.get_frame().set_linewidth(0)
+    filename = "visible_frames.pkl"
+    with open(filename, "wb") as f:
+        pickle.dump(visible_frames, f)
+    
+    print(f"Done obtaining the visible frames, saved to {filename}")
+    print(visible_frames)
 
-    # add the annotation
-    if ablation_annotation is not None:
-        add_annotation(plt.gca(), ablation_annotation)
+# utility function for adding the visible frames to a DSG folder, use after get_visible_frames to fix a DSG folder that doesn't have the "human is seen" flag
+def add_visible_frames(episode_dir:str, description:str=""):
+    # load the visible frames
+    filename = "visible_frames.pkl"
+    with open(filename, "rb") as f:
+        visible_frames = pickle.load(f)
 
-    # draw a downward arrow on the y-axis to indicate lower is better
-    x_pos = -0.107
-    plt.annotate("", xy=(x_pos, 0.2), xytext=(x_pos, 0), xycoords="axes fraction", arrowprops=dict(arrowstyle="<-", lw=0.5, color="black"))
+    # load the DSG data
+    subfolder = "DSGs" + (" " + description if description != "" else "")
+    dsg_files = [x for x in os.listdir(f"{episode_dir}/{subfolder}") if x.startswith("DSGs_")]
+    for dsg_file in dsg_files:
+        dsg_i = int(dsg_file.split("_")[1].split(".")[0])
+        with open(f"{episode_dir}/{subfolder}/{dsg_file}", "rb") as f:
+            data = pickle.load(f)
+            data["human is seen"] = visible_frames[dsg_i]
+        
+        # save the DSG data
+        with open(f"{episode_dir}/{subfolder}/{dsg_file}", "wb") as f:
+            pickle.dump(data, f)
 
-    plt.tight_layout()
-    plt.savefig("dsg_metrics.png", dpi=500)
-    plt.show()
+    print("Done adding the visible frames in to", episode_dir, description)
 
 
 def add_annotation(ax, text):
@@ -166,19 +220,19 @@ def generate_dsg_metrics(episode_dir:str):
         for frame_id in sorted(data[description]["frames"].keys()):
             dsg_robot = data[description]["frames"][frame_id]["robot"]
             dsg_human_gt = data[description]["frames"][frame_id]["gt human"]
-            dsg_human_pred = data[description]["frames"][frame_id]["pred human"]
+            dsg_human_inferred = data[description]["frames"][frame_id]["pred human"]
 
             robot_set = format_objects_by_class(dsg_robot.get_objects_by_class())
             human_gt_set = format_objects_by_class(dsg_human_gt.get_objects_by_class())
-            human_pred_set = format_objects_by_class(dsg_human_pred.get_objects_by_class())
+            human_inferred_set = format_objects_by_class(dsg_human_inferred.get_objects_by_class())
             initial_set = format_objects_by_class({class_name : data[description]["initial"][class_name] for class_name in data[description]["initial"] if class_name in robot_set})
 
             similarities[description][frame_id] = {
                 "robot wrt human": metrics.metrics.smcc(robot_set, human_gt_set),
                 "robot wrt initial": metrics.metrics.smcc(robot_set, initial_set),
                 "human wrt initial": metrics.metrics.smcc(human_gt_set, initial_set),
-                "pred wrt human": metrics.metrics.smcc(human_pred_set, human_gt_set),
-                "pred wrt initial": metrics.metrics.smcc(human_pred_set, initial_set)
+                "pred wrt human": metrics.metrics.smcc(human_inferred_set, human_gt_set),
+                "pred wrt initial": metrics.metrics.smcc(human_inferred_set, initial_set)
             }
 
             if prev_robot_set is not None:
@@ -198,6 +252,26 @@ def generate_dsg_metrics(episode_dir:str):
         for description in descriptions:
             print(f"{description}:\t{round(mean_similarities[description][k], 3)} ± {round(std_similarities[description][k], 3)}")
     
+
 if __name__ == "__main__":
     # generate_dsg_metrics("episodes/episode_42")
-    generate_dsg_smcc_plot(episode_dir="episodes/episode_42", ablation_annotation="Ground Truth Perception")
+    fig, (ax_online, ax_gt) = plt.subplots(1, 2, squeeze=True)
+    fig.set_size_inches(13.5, 5)
+    # Note: GT Robot Online Human is the reverse
+    plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax_online, episode_dir="episodes/episode_42_short", description="unknown", ablation_annotation="Full Perception Stack")
+    plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax_gt, episode_dir="episodes/episode_42_short", description="Static Walkabout GT Robot Online Human", ablation_annotation="Ground Truth Perception", show_y_label=False)
+
+    # create the legend
+    handles = [
+        plot_online_inferred_wrt_human[0],  # [0] to get the label component
+        matplotlib.patches.Patch(facecolor=color_human_is_seen, alpha=color_human_is_seen_alpha, label='The human is observed in this frame.'),
+        plot_online_human_wrt_initial[0],
+        plot_online_robot_wrt_initial[0]
+    ]
+    legend = fig.legend(handles=handles, framealpha=1, fontsize=legend_fontsize, loc="lower center", bbox_to_anchor=legend_adjustment, ncol=2)
+    legend.get_frame().set_linewidth(0)
+    
+    plt.tight_layout()
+    
+    plt.savefig("parents are out baseline.svg", bbox_inches="tight", pad_inches=0)
+    plt.show()

@@ -14,10 +14,10 @@ ignore_objects = ["lime", "waterglass", "slippers", "cellphone"]  # limes/cellph
 os_name = platform.system()
 
 room_points = {
-    "bathroom": ((5.87, -6.92), (-1.32, -5.80)),
-    "bedroom": ((6.05, -6.98), (-8.48, -0.40)),
+    "bathroom": ((-8.75, 1.11), (-8.48, -.4)),
+    "bedroom": ((-7.11, -4.99), (-7.7, -5.96)),
     "kitchen": ((-4.87, -6.91), (-0.64, -5.16)),
-    "livingroom": ((-2.92, 2.52), (-1.67, -5.80))
+    "livingroom": ((5.85, -6.9), (5.90, -6.9))
 }
 
 def walkthrough_household(output_folder:str="Episodes", file_name_prefix="Current"):
@@ -96,7 +96,6 @@ def __randomize_object_locations__(g:dict) -> dict:
         # use the shuffled object IDs so we can go through and assign each object the object ID and position of a different object
         # positions mapping[original object ID] = (new object ID, position of new object ID, class of new object ID)
         positions_mapping[positions_ids_old[i]] = (positions_ids[i], positions_positions[i], positions_names[i])
-        print("SHUFFLING", positions_mapping[positions_ids_old[i]], "=", positions_ids[i], positions_positions[i], positions_names[i])
     
     # replace the positions
     for id_of_node_to_change in positions_mapping:
@@ -117,7 +116,6 @@ def __randomize_object_locations__(g:dict) -> dict:
         for i in range(len(g["nodes"])):
             if g["nodes"][i]["id"] == id_of_node_to_change:
                 g["nodes"][i]["bounding_box"]["center"] = positions_mapping[using_position_of_id][1]
-                print("Using pos", positions_mapping[using_position_of_id][1], "for id", i)
                 g["nodes"][i]["obj_transform"]["position"] = positions_mapping[using_position_of_id][1]
                 break
     return g
@@ -169,10 +167,12 @@ def __object_of_min_dist__(loc, objects):
     min_dist = float("infinity")
     min_i = None
     for i in range(len(objects)):
-        dist = math.sqrt((loc[0] - objects[i][2][0]) ** 2 + (loc[1] - objects[i][2][1]) ** 2)
+        dist = math.sqrt((loc[0] - objects[i][2][0]) ** 2 + (loc[1] - objects[i][2][2]) ** 2)
+        print("  compare object", objects[i], "loc", loc, "dist", dist, "min?", dist < min_dist)
         if dist < min_dist:
             min_i = i
             min_dist = dist
+    print("object of min dist", objects[min_i], "dist", min_dist, "target loc", loc)
     return objects[min_i]
 
 # sends an action to all agents

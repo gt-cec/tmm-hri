@@ -5,6 +5,7 @@ import langchain_core.prompts
 import langchain_core.output_parsers
 import langchain_ollama.llms
 import langchain.output_parsers
+import demo.qwen
 
 # class for the LLM demo
 class LLMDemoActivityNeeds:
@@ -20,7 +21,7 @@ class LLMDemoActivityNeeds:
         self.NONE_OBJECT = NONE_OBJECT
 
         # set up the LLM
-        model = langchain_ollama.llms.OllamaLLM(model="qwen2.5:32b", temperature=0)
+        model = langchain_ollama.llms.OllamaLLM(model="qwen2.5:32b-instruct", temperature=0)
 
         # list chain-of-thought: give the set of objects to the LLM and ask for the subset that is relevant for the activity
         # set up the prompt
@@ -62,26 +63,44 @@ class LLMDemoActivityNeeds:
         print("Identify via list cot:", response, subset)
         return subset["relevant_items"]
     
-    def identify_via_single_cot(self, objects: list[str], activity:str) -> list[str]:
+    def identify_via_single_cot(self, objects: list[str], activity:str, use_hf:bool=True) -> list[str]:
         """Identify the relevant items using a chain of thought prompt."""
         selected = []
         for obj in objects:
-            result = self.single_cot_chain.invoke({"object": obj, "activity": activity})
-            print("Identify via single cot (", obj, activity, ") result:", result)
-            if result.lower().strip().replace(".", "").split(" ")[0] == "true":
-                selected.append(obj)
+            if use_hf:
+                response, logits = demo.qwen.run(f"You are tasked with judging whether an object is relevant to an activity. You will be given an object and an activity, and you must return whether the object is relevant for the activity.\n\nFor example, if you are given an object and the activity is {activity}, return whether the object is relevant to the activity.\n\nYour turn! Is a {obj} useful for {activity}?")
+                result = demo.qwen.eval_binary(logits)
+                print("Identify via HUGGINGFACE single cot (", obj, activity, ") result:", result)
+                with open("cot judge logits.txt", "a") as f:
+                    f.write(f"judge {obj} {activity} {result}\n")
+                # if result[("true", "false")] > 0.5:
+                #     selected.append(obj)
+            else:
+                result = self.single_cot_chain.invoke({"object": obj, "activity": activity})
+                print("Identify via single cot (", obj, activity, ") result:", result)
+                if result.lower().strip().replace(".", "").split(" ")[0] == "true":
+                    selected.append(obj)
         if len(selected) == 0:
             selected = [self.NONE_OBJECT]
         return selected
     
-    def identify_via_single_judge(self, objects: list[str], activity:str) -> list[str]:
+    def identify_via_single_judge(self, objects: list[str], activity:str, use_hf:bool=True) -> list[str]:
         """Identify the relevant items using a short judge prompt."""
         selected = []
         for obj in objects:
-            result = self.single_judge_chain.invoke({"object": obj, "activity": activity})
-            print("Identify via single judge:", result)
-            if result.lower().strip().replace(".", "").split(" ")[0] == "true":
-                selected.append(obj)
+            if use_hf:
+                response, logits = demo.qwen.run(f"Is a {obj} useful for {activity}?")
+                result = demo.qwen.eval_binary(logits)
+                print("Identify via HUGGINGFACE single judge (", obj, activity, ") result:", result)
+                with open("single judge logits.txt", "a") as f:
+                    f.write(f"judge {obj} {activity} {result}\n")
+                # if result[("true", "false")] > 0.5:
+                #     selected.append(obj)
+            else:
+                result = self.single_judge_chain.invoke({"object": obj, "activity": activity})
+                print("Identify via single judge:", result)
+                if result.lower().strip().replace(".", "").split(" ")[0] == "true":
+                    selected.append(obj)
         if len(selected) == 0:
             selected = [self.NONE_OBJECT]
         return selected

@@ -76,8 +76,13 @@ ACTIVITIES = {
 scores = {}
 
 # initialize the model
-model = demo.llm.LLMDemoActivityNeeds(NONE_OBJECT=NONE_OBJECT)
-bert = demo.deberta.DeBERTav3()
+model = None
+bert = None
+
+def load_models():
+    global model, bert
+    model = demo.llm.LLMDemoActivityNeeds(NONE_OBJECT=NONE_OBJECT)
+    bert = demo.deberta.DeBERTav3()
     
 def load_latest_dsgs_from_episode(episode:str):
     """Load the latest dynamic scene graphs from an episode.""" 
@@ -99,7 +104,7 @@ def load_dsgs_from_episode(episode:str, frame_id:str):
 
 def parse_object_classes(dsg:dsg) -> list[str]:
     """Parse the object classes from a dynamic scene graph."""
-    return [OBJECT_NAME_LOOKUP[dsg.objects[obj]['class']] if dsg.objects[obj]['class'] in OBJECT_NAME_LOOKUP else dsg.objects[obj]['class'] for obj in dsg.objects]
+    return list(set([OBJECT_NAME_LOOKUP[dsg.objects[obj]['class']] if dsg.objects[obj]['class'] in OBJECT_NAME_LOOKUP else dsg.objects[obj]['class'] for obj in dsg.objects]))
 
 
 def filter_dsg_to_objects_beyond_dist(dsg_source:dsg, dsg_target:dsg, dist_limit=3) -> dsg:
@@ -152,23 +157,24 @@ def run_demo(episode:str, activity:str="cooking", dist_limit:float=0.3, frame_id
     objects_human = parse_object_classes(dsgs_objects_human_does_not_know)
     
     # identify the items that the user may need
-    llm_list_cot_proposed = model.identify_via_list_cot(objects_human, activity)
-    llm_single_cot_proposed = model.identify_via_single_cot(objects_human, activity)
-    llm_single_judge_proposed = model.identify_via_single_judge(objects_human, activity)
-    bert_proposed = bert.predict_many(objects_human, activity)
+    # llm_list_cot_proposed = model.identify_via_list_cot(objects_human, activity)
+    llm_single_cot_proposed = model.identify_via_single_cot(objects_human, activity, use_hf=True)
+    print("OBJECTS", objects_human)
+    llm_single_judge_proposed = model.identify_via_single_judge(objects_human, activity, use_hf=True)
+    # bert_proposed = bert.predict_many(objects_human, activity)
 
-    grade_demo("llm list cot", objects_human, activity, llm_list_cot_proposed)
+    # grade_demo("llm list cot", objects_human, activity, llm_list_cot_proposed)
     grade_demo("llm single cot", objects_human, activity, llm_single_cot_proposed)
     grade_demo("llm single judge", objects_human, activity, llm_single_judge_proposed)
-    grade_demo("bert", objects_human, activity, bert_proposed)
+    # grade_demo("bert", objects_human, activity, bert_proposed)
 
     if verbose:
         print(f"Objects far enough from the robot's belief state: {objects_human}")
         print(f"  Distances: {distances}")
-        print(f"  Objects deemed relevant to {activity} by list COT: {llm_list_cot_proposed}")
+        # print(f"  Objects deemed relevant to {activity} by list COT: {llm_list_cot_proposed}")
         print(f"  Objects deemed relevant to {activity} by single COT: {llm_single_cot_proposed}")
         print(f"  Objects deemed relevant to {activity} by single judge: {llm_single_judge_proposed}")
-        print(f"  Objects deemed relevant to {activity} by DeBERTa: {bert_proposed}")
+        # print(f"  Objects deemed relevant to {activity} by DeBERTa: {bert_proposed}")
     
     return scores
 

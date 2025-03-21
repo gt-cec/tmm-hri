@@ -299,7 +299,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
     episode_name = "episode_42"
-    episode_dir = f"episodes/{episode_name}"
+    episode_dir = f"episodes/{episode_name}_short"
     # get the agent ID
     agent_id = "0"
     if len(sys.argv) > 1:
