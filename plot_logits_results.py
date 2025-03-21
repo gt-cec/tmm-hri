@@ -129,7 +129,10 @@ def load_text(filename):
             data[activity][obj] = value
     return data
 
-
+# chain of thought eval
 data = load_text("cot eval logits.txt")
-# plot the data
 plot_logits_results(data, "Intro, symbolic example, Is a _ useful for _?")
+
+# simple prompt eval
+data = load_text("simple eval logits.txt")
+plot_logits_results(data, "Is a _ useful for _?")

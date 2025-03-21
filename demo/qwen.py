@@ -1,7 +1,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import math
 
-model_name = "Qwen/Qwen2.5-3B-Instruct"
+model_name = "Qwen/Qwen2.5-32B-Instruct"
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
@@ -46,7 +46,7 @@ def run(prompt):
 
     generated_ids = model.generate(
         **model_inputs,
-        max_new_tokens=512,
+        max_new_tokens=1,
         output_logits=True,
         return_dict_in_generate=True
     )
