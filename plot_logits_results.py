@@ -17,6 +17,10 @@ def create_violin_plot(data, ax, keys, title):
     ax.set_ylabel("Confidence (high is True)")
     ax.set_title(title)
 
+    # hide the top and right bars
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
     for i, points in enumerate(data):
         points = [x for x in points]
         jitter = np.random.uniform(-0.1, 0.1, size=len(points))
@@ -29,7 +33,7 @@ def plot_logits_results(data, prompt):
     """  
 
     fig = plt.figure(figsize=(15, 5))
-    fig.suptitle(f"Qwen2.5:3b Logits Results From: \"{prompt}\"")
+    fig.suptitle(f"Qwen2.5:32b Instruct Logits Results From: \"{prompt}\"")
     num_yesno_pairs = len(demo.qwen.token_ids) // 2
     gs = gridspec.GridSpec(2, num_yesno_pairs, figure=fig)#plt.subplots(2, 8, figsize=(15, 5))
 
@@ -37,7 +41,7 @@ def plot_logits_results(data, prompt):
     axes = [[], []]
     # Make a subplot span multiple columns (e.g., ax4 will span across two columns)
     axes[0].append(fig.add_subplot(gs[0, 0 : num_yesno_pairs // 2]))
-    axes[0].append(fig.add_subplot(gs[0, num_yesno_pairs // 2 : num_yesno_pairs]))
+    axes[0].append(fig.add_subplot(gs[0, num_yesno_pairs // 2 : num_yesno_pairs-1]))
     for i in range(num_yesno_pairs):
         axes[1].append(fig.add_subplot(gs[1, i]))
 
@@ -49,7 +53,7 @@ def plot_logits_results(data, prompt):
             for method in data[activity][obj]:
                 if method not in data_by_logit:
                     data_by_logit[method] = []
-                print(">>>", (ground_truth, data[activity][obj][method], obj, activity))
+                # print(">>>", (ground_truth, data[activity][obj][method], obj, activity))
                 data_by_logit[method].append((ground_truth, data[activity][obj][method], obj, activity))
 
     array_data_by_logit_gt_is_true = []
@@ -109,7 +113,8 @@ def plot_logits_results(data, prompt):
         axes[1][i].annotate(f"F1: {F1}\nPrec: {precision}\nRecall: {recall}", (0, 0.5), (0, 0.5), xycoords='axes fraction', textcoords='offset points', va='top')
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    plt.savefig(f"logits_results_{prompt}.svg", format="svg", transparent=True)
     
 def load_text(filename):
     """
@@ -130,9 +135,9 @@ def load_text(filename):
     return data
 
 # chain of thought eval
-data = load_text("cot eval logits.txt")
+data = load_text("cot eval logits 32b.txt")
 plot_logits_results(data, "Intro, symbolic example, Is a _ useful for _?")
 
 # simple prompt eval
-data = load_text("simple eval logits.txt")
+data = load_text("simple eval logits 32b.txt")
 plot_logits_results(data, "Is a _ useful for _?")

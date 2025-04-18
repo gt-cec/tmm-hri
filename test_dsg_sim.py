@@ -280,7 +280,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
                 if bgr is not None:
                     human_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)  # opencv reads as bgr, convert to rgb
                     gt_human_pose = [human_poses[str(frame_id)][0], human_poses[str(frame_id)][-1]]
-                    vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, human_rgb, frame_id)
+                    vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, gt_human_pose, robot_detected_objects, robot_human_detections, human_trajectory_debug, objects_visible_to_human, robot_rgb, depth, human_rgb, frame_id)
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
             if save_plot:

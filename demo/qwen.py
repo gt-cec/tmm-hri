@@ -1,7 +1,7 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import math
 
-model_name = "Qwen/Qwen2.5-32B-Instruct"
+model_name = "Qwen/Qwen2.5-3B-Instruct"
 
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
