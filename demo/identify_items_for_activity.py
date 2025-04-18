@@ -2,7 +2,6 @@
 
 # see the README.md for the instructions to run this code
 import os, pickle
-import dsg
 import utils
 
 NONE_OBJECT = "None of these objects"

@@ -24,6 +24,7 @@ class DeBERTav3:
             selected = ["None of these objects"]
         return selected
 
+# demonstration of using deberta
 if __name__ == "__main__":
     bert = DeBERTav3()
     print(bert.predict_many(["remote control", "toothbrush", "dish bowl", "cutlery fork", "washing sponge", "bar soap", "towel"], "washing the dishes"))

@@ -1,7 +1,7 @@
 # dsg_sim.py: construct a DSG from a simulator
 
 import mental_model
-from pose_estimation import pose
+import cec_pose
 import os, glob, ast, pickle, sys
 import cv2
 import numpy as np
@@ -49,7 +49,7 @@ def main(episode_dir, agent_id="0", use_gt_human_pose=False, use_gt_semantics=Fa
     agent_poses = utils.get_agent_pose_per_frame(episode_dir, episode_name, agent_id)
 
     # initialize the models
-    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
+    pose_detector = cec_pose.PoseDetector()  # share this across mental models, it has no state so no data leakage
 
     # initialize the mental models
     robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model

@@ -1,17 +1,17 @@
 # mental_model.py: uses the segmentator and the dynamic scene graph to construct and update the mental model
 
-from dsg import dsg
+import cec_dsg
+import cec_pose
 from detection import detect
 from segmentation import segment
-from pose_estimation import pose
 import math, numpy, utils
 import cv2, pickle, os
 
 class MentalModel:
     def __init__(self, pose_detector=None):
-        self.dsg = dsg.DSG()
+        self.dsg = cec_dsg.DSG()
         self.fov = 40
-        self.pose_detector = pose.PoseDetection() if pose_detector is None else pose_detector
+        self.pose_detector = cec_pose.PoseDetector() if pose_detector is None else pose_detector
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:

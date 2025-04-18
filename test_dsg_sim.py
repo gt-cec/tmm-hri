@@ -1,7 +1,7 @@
 # dsg_sim.py: construct a DSG from a simulator
 
 import mental_model
-from pose_estimation import pose
+import cec_pose
 import os, glob, ast, pickle, sys
 import cv2
 import numpy as np
@@ -86,7 +86,7 @@ def experiment_parents_are_out(episode_dir:str, agent_id="0", use_gt_human_pose=
                 initial_preshuffled_objects.append(node)
 
     # initialize the models
-    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
+    pose_detector = cec_pose.PoseDetector()  # share this across mental models, it has no state so no data leakage
 
     # initialize the mental models
     robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
@@ -136,7 +136,7 @@ def experiment_static_walkabout(episode_dir:str, agent_id="0", use_gt_human_pose
     initial_objects = [x for x in initial_objects if x["class"] in classes]
 
     # initialize the models
-    pose_detector = pose.PoseDetection()  # share this across mental models, it has no state so no data leakage
+    pose_detector = cec_pose.PoseDetector()  # share this across mental models, it has no state so no data leakage
 
     # initialize the mental models
     robot_mm = mental_model.MentalModel(pose_detector=pose_detector)  # initialize the robot's mental model
