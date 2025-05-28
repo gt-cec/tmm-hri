@@ -126,7 +126,7 @@ def __reset_sim__(seed=42):
     comm = UnityCommunication(no_graphics=False, port=8080)  # set up communiciation with the simulator, I don't think no_graphics actually does anything
     while True:  # keep trying to reconnect
         try:
-            comm.reset()
+            comm.reset(0)
             break
         except Exception as e:
             print("Waiting for simulator to accept a connection. Exception details:", str(e))

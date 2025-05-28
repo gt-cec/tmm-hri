@@ -284,7 +284,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
             elif show_plot == visualization.plot_full_tmm.PlotFullTMM:
                 vis.update(robot_mm, pred_human_mm, gt_human_mm, agent_pose, robot_detected_objects, robot_human_detections, objects_visible_to_human, robot_rgb, depth, frame_id)
             if save_plot:
-                plt.savefig(f"visualization_frames/frame_{frame_id}.png", dpi=300)
+                plt.savefig(f"visualization_frames/frame_{episode_name}_{frame_id}.png", dpi=300)
             plt.pause(.01)  # needed for matplotlib to show the plot and not get tripped up
             print("    Saved the visualization frame.")
 
@@ -299,11 +299,14 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
 if __name__ == "__main__":
     print("Testing the dynamic scene graph on simulator data.")
     episode_name = "episode_42"
-    episode_dir = f"episodes/{episode_name}_short"
+    if len(sys.argv) > 1:
+        episode_name = "episode_" + sys.argv[1]
+    print("Running on Episode", episode_name)
+    episode_dir = f"episodes/{episode_name}"
     # get the agent ID
     agent_id = "0"
-    if len(sys.argv) > 1:
-        agent_id = sys.argv[1]
+    if len(sys.argv) > 2:
+        agent_id = sys.argv[2]
 
     # Parents are Out (ablation online all): online detection, online pose, A* human traj, GT human mm
     experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)

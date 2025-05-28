@@ -5,7 +5,7 @@ import utils
 
 
 # gets the closest match to a color in the ground truth instance map, used for VirtualHome's simulator ground truth
-def get_closest_match(self, color, gt_instances_color_map):
+def get_closest_match(color, gt_instances_color_map):
     closest_match = None
     closest_match_dist = 1000000
     dists = []
@@ -21,7 +21,7 @@ def get_closest_match(self, color, gt_instances_color_map):
 
 
 # processes a ground truth instance map and color map to get objects, can filter in classes
-def detect_from_ground_truth(self, gt_instances_image, gt_class_image, gt_class_colormap, classes=[], class_to_class_id=[]):
+def detect_from_ground_truth(gt_instances_image, gt_class_image, gt_class_colormap, classes=[], class_to_class_id=[]):
     objects = []  # objects detected
     segments = np.empty(gt_instances_image.shape[:2])
     segments = segments[np.newaxis, ...]

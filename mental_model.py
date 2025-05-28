@@ -2,7 +2,8 @@
 
 import cec_dsg
 import cec_pose
-from detection import detect
+import cec_detect
+import detection.detect
 from segmentation import segment
 import math, numpy, utils
 import cv2, pickle, os
@@ -12,6 +13,7 @@ class MentalModel:
         self.dsg = cec_dsg.DSG()
         self.fov = 40
         self.pose_detector = cec_pose.PoseDetector() if pose_detector is None else pose_detector
+        self.object_detector = cec_detect.Detector()
 
     # initializes the DSG from a list of objects
     def initialize(self, objects:list, verbose=False) -> None:
@@ -36,7 +38,7 @@ class MentalModel:
             ignore_dist = 0  # we can ignore objects that are too far because of measurement uncertainty, choosing not to because it didn't make a noticeable difference.
             print("    Using object detection from ground truth information!")
             # get the detected objects and segmentations
-            detected_objects, object_seg_masks = detect.detect_from_ground_truth(gt_instance_image, gt_class_image, gt_class_colormap, classes=classes, class_to_class_id=class_to_class_id)
+            detected_objects, object_seg_masks = detection.detect.detect_from_ground_truth(gt_instance_image, gt_class_image, gt_class_colormap, classes=classes, class_to_class_id=class_to_class_id)
             rgb_detected_humans = None
             depth_detected_humans = None
             # add the segmentation masks to the detected objects
@@ -62,23 +64,24 @@ class MentalModel:
                 depth_detected_humans = None
             else:
                 # get objects in the scene
-                detected_objects, _ = detect.detect(rgb, classes, detect_threshold)  # returns detected objects and an RGB debugging image (ignored)
+                detected_objects = self.object_detector.detect(rgb, classes, detect_threshold)  # returns detected objects and an RGB debugging image (ignored)
 
                 # get humans in the scene
-                rgb_detected_humans, _ = detect.detect(rgb, depth_classes, 0.1)
+                rgb_detected_humans = self.object_detector.detect(rgb, depth_classes, 0.1)
                 for human in rgb_detected_humans:
                     human["class"] = "human"
                     human["class id"] = human_class_id
 
                 # get humans figures using depth, this is used to double check the humans
                 depth_3channel = numpy.tile(numpy.expand_dims(depth, axis=0), (3, 1, 1))  # Shape becomes (3, 2, 2)
-                depth_detected_humans, depth_with_boxes = detect.detect(depth_3channel * 20, depth_classes, 0.4)  # multiplying depth by *20 makes it a more contrastive image
+                depth_detected_humans = self.object_detector.detect(depth_3channel * 20, depth_classes, 0.4)  # multiplying depth by *20 makes it a more contrastive image
+                # Jack: depth_with_boxes no longer exists because the object detector only returns one variable now, maybe we need to extract it?
                 for human in depth_detected_humans:  # set all outputs to human
                     human["class"] = "human"
                     human["class id"] = human_class_id
 
                 # remove the humans from the detected humans that do not overlap with the depth
-                detected_humans = detect.remove_objects_not_overlapping(rgb_detected_humans, depth_detected_humans, overlap_threshold=0.3, classes_to_filter=["human"])
+                detected_humans = self.object_detector.remove_objects_not_overlapping(rgb_detected_humans, depth_detected_humans, overlap_threshold=0.3, classes_to_filter=["human"])
                 
                 # segment the objects
                 object_boxes = [o["box"] for o in detected_objects]
