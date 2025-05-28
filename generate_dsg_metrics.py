@@ -8,27 +8,61 @@ import os, pickle, utils, ast, statistics
 # color_sunset_redorange = (250/255, 51/255, 41/255)
 # color_sunset_brown = (164/255, 27/255, 31/255)
 color_blue_dark = (20/255, 67/255, 148/255)
+color_purple_dark = (133/255, 34/255, 143/255)
 color_redpurple = (161/255, 17/255, 28/255)
-color_blue_medium = (15/255, 126/255, 253/255, 0)
+color_blue_medium = (15/255, 126/255, 253/255)
+color_maj_medium = (254/255, 26/255, 104/255)
+
 color_blue_light = (130/255, 165/255, 214/255)
+color_purple_light = (165/255, 130/255, 250/255)
 color_black = (0, 0, 0)
 
-color_inferred = color_redpurple #color_blue_dark
-color_robot = color_black #color_blue_light
-color_human = color_blue_medium
+combined = True
 
-color_human_is_seen = color_blue_dark
-color_human_is_seen_alpha = 0#0.25  # set to zero while plotting the other lines
+color_inferred = color_blue_medium  #color_redpurple
+color_robot = color_blue_light  #color_black
+color_human = color_blue_dark
+
+color_inferred_gt = color_blue_medium#color_maj_medium
+color_robot_gt = color_blue_light#color_purple_light
+
+color_human_is_seen = (202/255, 214/255, 234/255)
+color_human_is_seen_alpha = 1
 
 # plot parameters
 ablation_annotation = None  # comment out this to show the ablation annotation
 axis_fontsize = 15
-legend_adjustment = (0.5, -0.12)
-legend_fontsize = 13
+legend_adjustment = (0.5, -0.12) if not combined else (0.5, -0.01)
+legend_fontsize = 13 if not combined else 12
 ylim_max = 1.4
 whiteout_y_start = 1.4
-arrow_x_pos = -0.11
+arrow_x_pos = -0.04
 arrow_start_y = 0.15
+
+
+# define an object that will be used by the legend
+class MulticolorPatch(object):
+    def __init__(self, colors):
+        self.colors = colors
+        
+# define a handler for the MulticolorPatch object
+class MulticolorPatchHandler(object):
+    def legend_artist(self, legend, orig_handle, fontsize, handlebox):
+        width, height = handlebox.width, handlebox.height
+        patches = []
+        for i, c in enumerate(orig_handle.colors):
+            patches.append(plt.Rectangle([width/len(orig_handle.colors) * i - handlebox.xdescent, 
+                                          -handlebox.ydescent],
+                           width / len(orig_handle.colors),
+                           height, 
+                           facecolor=c, 
+                           edgecolor='none'))
+
+        patch = matplotlib.patches.PatchCollection(patches,match_original=True)
+
+        handlebox.add_artist(patch)
+        return patch
+
 
 def load_dsg_data(episode_dir:str, description:str="") -> dict:
     """
@@ -60,7 +94,7 @@ def load_dsg_data(episode_dir:str, description:str="") -> dict:
     return data
 
 
-def generate_dsg_smcc_plot(ax, episode_dir:str, description:str="", ablation_annotation=None, show_y_label=True, hide_everything=False):
+def generate_dsg_smcc_plot(ax, episode_dir:str, description:str="", ablation_annotation=None, show_y_label=True, gt_colors=False, hide_everything=False):
     data = load_dsg_data(episode_dir, description)
     # generate the metrics
     similarities = {}
@@ -97,8 +131,9 @@ def generate_dsg_smcc_plot(ax, episode_dir:str, description:str="", ablation_ann
     
     # plot the similarities
     timesteps = [x / 10 for x in frames]
-    plot_inferred_wrt_human = ax.plot(timesteps, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="★[Inferred vs. Human] Error of the inferred belief state.", color=color_inferred)
-    plot_robot_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="[Robot vs. True] Error of the robot's belief state.", color=color_robot, linestyle="-")
+    perception = " (Perception Stack)." if not gt_colors else " (GT Perception)."
+    plot_inferred_wrt_human = ax.plot(timesteps, [similarities[frame_id]["pred wrt human"] for frame_id in frames], label="★[Inferred vs. Human] Error of the inferred belief state" + perception, color=color_inferred if not gt_colors else color_inferred_gt, linestyle="-" if not gt_colors else "--")
+    plot_robot_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["robot wrt initial"] for frame_id in frames], label="[Robot vs. True] Error of the robot's belief state" + perception, color=color_robot if not gt_colors else color_robot_gt, linestyle="-" if not gt_colors else "--")
     plot_human_wrt_initial = ax.plot(timesteps, [similarities[frame_id]["human wrt initial"] for frame_id in frames], label="[Human vs. True] Error of the human's belief state.", color=color_human, linestyle="-")
    
     # set the labels
@@ -257,7 +292,7 @@ def generate_dsg_metrics(episode_dir:str):
 
 if __name__ == "__main__":
     generate_two = False
-    show_legend = False
+    show_legend = True
     hide_everything=False
 
     # GENERATE SIDE BY SIDE
@@ -271,23 +306,25 @@ if __name__ == "__main__":
     # GENERATE ONE
     if not generate_two:
         fig, (ax) = plt.subplots(1, 1, squeeze=True)
-        fig.set_size_inches(6.75, 5)
+        fig.set_size_inches(6.75 if not combined else 13, 8)
         # Note: GT Robot Online Human is the reverse
         plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir="episodes/episode_42_short", description="Parents are Out Online Robot GT Human", ablation_annotation="", hide_everything=hide_everything)
-        # plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir="episodes/episode_42_short", description="Parents are Out GT Robot GT Human", ablation_annotation="", show_y_label=False)
+        plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir="episodes/episode_42_short", description="Parents are Out GT Robot GT Human", ablation_annotation="", show_y_label=False, gt_colors=True)
 
     # create the legend
     if show_legend:
         handles = [
             plot_online_inferred_wrt_human[0],  # [0] to get the label component
-            matplotlib.patches.Patch(facecolor=color_human_is_seen, alpha=color_human_is_seen_alpha, label='The human is observed in this frame.'),
+            plot_gt_inferred_wrt_human[0],  # [0] to get the label component
             plot_online_human_wrt_initial[0],
-            plot_online_robot_wrt_initial[0]
+            plot_online_robot_wrt_initial[0],
+            plot_gt_robot_wrt_initial[0],
+            matplotlib.patches.Patch(facecolor=color_human_is_seen, alpha=color_human_is_seen_alpha, label='The human is observed in this frame.'),
         ]
         legend = fig.legend(handles=handles, framealpha=1, fontsize=legend_fontsize, loc="lower center", bbox_to_anchor=legend_adjustment, ncol=2)
         legend.get_frame().set_linewidth(0)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=(0, 0.085, 1, 1))
     
-    plt.savefig("parents are out baseline.svg", bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.savefig("parents are out results.svg", transparent=True)
     plt.show()
