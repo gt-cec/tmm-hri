@@ -7,7 +7,8 @@ port= "8080"
 
 comm = comm_unity.UnityCommunication(
     file_name = file_name,
-    port = port
+    port = port,
+    x_display=":0"
 )
 
 env_id = 0 # env_id ranges from 0 to 6
