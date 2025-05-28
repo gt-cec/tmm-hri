@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches
 import metrics.metrics
-import os, pickle, utils, ast, statistics
+import os, pickle, utils, ast, statistics, sys
 
 # plot colors
 # color_sunset_orange = (252/255, 112/255, 35/255)
@@ -291,6 +291,8 @@ def generate_dsg_metrics(episode_dir:str):
     
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        episode_number = sys.argv[1]
     generate_two = False
     show_legend = True
     hide_everything=False
@@ -300,16 +302,16 @@ if __name__ == "__main__":
         fig, (ax_online, ax_gt) = plt.subplots(1, 2, squeeze=True)
         fig.set_size_inches(13.5, 5)
         # Note: GT Robot Online Human is the reverse
-        plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax_online, episode_dir="episodes/episode_42_short", description="Parents are Out Online Robot GT Human", ablation_annotation="")
-        plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax_gt, episode_dir="episodes/episode_42_short", description="Parents are Out GT Robot GT Human", ablation_annotation="", show_y_label=False)
+        plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax_online, episode_dir=f"episodes/episode_{episode_number}", description="Parents are Out Online Robot GT Human", ablation_annotation="")
+        plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax_gt, episode_dir=f"episodes/episode_{episode_number}", description="Parents are Out GT Robot GT Human", ablation_annotation="", show_y_label=False)
 
     # GENERATE ONE
     if not generate_two:
         fig, (ax) = plt.subplots(1, 1, squeeze=True)
         fig.set_size_inches(6.75 if not combined else 13, 8)
         # Note: GT Robot Online Human is the reverse
-        plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir="episodes/episode_42_short", description="Parents are Out Online Robot GT Human", ablation_annotation="", hide_everything=hide_everything)
-        plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir="episodes/episode_42_short", description="Parents are Out GT Robot GT Human", ablation_annotation="", show_y_label=False, gt_colors=True)
+        plot_online_inferred_wrt_human, plot_online_robot_wrt_initial, plot_online_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir=f"episodes/episode_{episode_number}", description="Parents are Out Online Robot GT Human", ablation_annotation="", hide_everything=hide_everything)
+        plot_gt_inferred_wrt_human, plot_gt_robot_wrt_initial, plot_gt_human_wrt_initial = generate_dsg_smcc_plot(ax, episode_dir=f"episodes/episode_{episode_number}", description="Parents are Out Online Robot GT Human", ablation_annotation="", show_y_label=False, gt_colors=True)
 
     # create the legend
     if show_legend:
@@ -326,5 +328,5 @@ if __name__ == "__main__":
     
     plt.tight_layout(rect=(0, 0.085, 1, 1))
     
-    plt.savefig("parents are out results.svg", transparent=True)
+    plt.savefig(f"episode {episode_number} parents are out results.svg", transparent=True)
     plt.show()
