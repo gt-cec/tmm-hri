@@ -3,7 +3,7 @@
 from virtualhome.virtualhome.simulation.unity_simulator import comm_unity
 
 file_name = "./linux_exec/linux_exec.v2.3.0.x86_64"
-port= "5050"
+port= "8080"
 
 comm = comm_unity.UnityCommunication(
     file_name = file_name,
