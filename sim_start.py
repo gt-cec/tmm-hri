@@ -8,7 +8,7 @@ port= "5050"
 comm = comm_unity.UnityCommunication(
     file_name = file_name,
     port = port,
-    graphics = False
+    no_graphics = True
     # x_display=":0"
 )
 
