@@ -243,7 +243,13 @@ def __get_objects_in_rooms__(g={}):
 
 # run the agents
 if __name__ == "__main__":
+    # get the first argument as the seed
     seed = 42
+    if len(os.sys.argv) > 1:
+        try:
+            seed = int(os.sys.argv[1])
+        except ValueError:
+            print("Invalid seed argument, using default seed 42.")
     output_folder = "../episodes"  # relative to the executable, in our case up one directory
     episode_count = 1
     num_agents = 2
