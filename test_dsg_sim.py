@@ -2,6 +2,7 @@
 
 import mental_model
 import cec_pose
+import pose_estimation.pose
 import os, glob, ast, pickle, sys
 import cv2
 import numpy as np
@@ -226,7 +227,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
             gt_instance_image = cv2.cvtColor(gt_instance_image, cv2.COLOR_BGR2RGB)
             gt_class_image = cv2.imread(f"{robot_frame_prefix}_seg_class.png") # if gt_semantic is passed in to the mental model, it will be used. If not, the RGB image will be segmented.
             gt_class_image = cv2.cvtColor(gt_class_image, cv2.COLOR_BGR2RGB)
-            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_instance_image=gt_instance_image, gt_class_image=gt_class_image, gt_class_colormap=color_to_class, seg_threshold=0.4)
+            robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, gt_instance_image=gt_instance_image, gt_class_image=gt_class_image, gt_class_colormap=color_to_class, detect_threshold=0.4)
         else:  # detect objects using the object detector and segmentation layer
             print("  Using object detection and segmentation network on RGB input.")
             robot_detected_objects, robot_human_detections = robot_mm.update_from_rgbd_and_pose(robot_rgb, depth_1channel, agent_pose, classes, class_to_class_id=class_to_class_id, depth_classes=depth_classes, detect_threshold=0.4, seg_save_name=f"{episode_dir}/{agent_id}/Action_{str(frame_id).zfill(4)}")
@@ -251,7 +252,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
             human_pose = human_poses[str(frame_id)] if use_gt_human_pose else robot_human_detections[0][0]["pose"]  # get the human's pose
             human_location = [human_pose[0], human_pose[1], human_pose[2]] # pose[0] is the base joint, using [east, north, vertical]
             if use_gt_human_pose:
-                human_direction = robot_mm.pose_detector.get_direction_from_pose(human_pose, use_gt_human_pose=use_gt_human_pose) # get the direction that the human is facing
+                human_direction = pose_estimation.pose.get_direction_from_pose(human_pose, use_gt_human_pose=use_gt_human_pose) # get the direction that the human is facing
                 human_location = [human_pose[0][0], human_pose[0][1], human_pose[0][2]]
                 robot_human_detections[0][0]["pose"] = human_location # update the human's pose in the detections
                 robot_human_detections[0][0]["direction"] = human_direction  # update the human's direction in the detections
@@ -265,7 +266,7 @@ def __run_through_simulation__(agent_id, robot_mm, gt_human_mm, pred_human_mm, e
                     for frame_id in range(last_saw_human[0], frame_id+1):  # for each frame since the last seen
                         if str(frame_id) in human_poses:
                             _human_location = human_poses[str(frame_id)][0]  # get the pose
-                            _human_direction = robot_mm.pose_detector.get_direction_from_pose(human_poses[str(frame_id)], use_gt_human_pose=True)[:2]
+                            _human_direction = pose_estimation.pose.get_direction_from_pose(human_poses[str(frame_id)], use_gt_human_pose=True)[:2]
                             gt_human_poses.append([_human_location, _human_direction])  # save the pose (x/y/z) and direction (x/y)
                 # get objects along the path that the human took
                 objects_visible_to_human, human_trajectory_debug = prediction.predict.get_objects_visible_from_last_seen(last_saw_human[1][:2], human_location[:2], map_boundaries, robot_mm.dsg, human_fov=gt_human_mm.fov, end_direction=robot_human_detections[0][0]["direction"][:2], use_gt_human_trajectory=use_gt_human_trajectory, gt_human_poses=gt_human_poses, infer_human_trajectory=infer_human_trajectory, debug_tag=f"{frame_id}")
@@ -309,7 +310,7 @@ if __name__ == "__main__":
         agent_id = sys.argv[2]
 
     # Parents are Out (ablation online all): online detection, online pose, A* human traj, GT human mm
-    experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
+    #experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
     
     # Parents are Out (ablation online but GT pose): online detection, GT pose, A* human traj, GT human mm
     # experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=True, use_gt_semantics=False, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
@@ -337,7 +338,7 @@ if __name__ == "__main__":
     # experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=True, use_gt_semantics=True, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
 
     # Parents are Out (ablation full GT but NO path inference): GT pose, GT detection, online human traj, GT human mm
-    # experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=True, use_gt_semantics=True, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
+    experiment_parents_are_out(episode_dir, agent_id=agent_id, use_gt_human_pose=True, use_gt_semantics=True, use_gt_human_trajectory=False, infer_human_trajectory=True, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
 
     # Static Walkabout: Online Robot, GT Human
     #experiment_static_walkabout(episode_dir, agent_id=agent_id, use_gt_human_pose=False, use_gt_semantics=False, save_plot=True, show_plot=visualization.plot_pred_human.PlotPredHuman, save_dsgs=True)
