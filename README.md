@@ -162,3 +162,11 @@ Since we are hosting our LLM locally using ollama, install the connector:
 Then start Ollama, and run the demo script:
 
 `python3.11 demo/identify_items_for_activity.py`
+
+### Calculating numerical results
+
+We ran the `test_dsg_sim.py` script to process each episode with the ablation parameters. 
+
+We then ran `generate_dsg_metrics.py` to obtain the mean and pooled standard deviations for the ablation study, make sure to edit the script for the episodes you are calculating for.
+
+For plotting, we ran `generate_dsg_plots.py`, edit the script for the plot parameters (combined, colors, etc).
